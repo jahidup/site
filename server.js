@@ -472,8 +472,6 @@ app.post('/api/practice-test', auth, async (req, res) => {
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const AI_MODELS = [
   'gpt-oss-120b',
-  'llama-3.3-70b',
-  'gemini-flash-1.5-8b'
 ];
 
 async function askOpenRouter(promptText, useSystemPrompt = true) {
