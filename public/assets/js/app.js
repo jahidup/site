@@ -1,5 +1,6 @@
 /*****************************************************
  *  Sankalp Digital Pathshala – complete app.js
+ *  Final version with all fixes
  *****************************************************/
 const API = '/api';
 let token = localStorage.getItem('sp_token');
@@ -280,12 +281,14 @@ if (page === 'dashboard') {
     }
   }
 
-  // ---------- My Courses ----------
+  // ---------- My Courses (with auto‑refresh) ----------
   async function myCourses() {
+    // ✅ Force refresh of current user data so newly assigned courses appear immediately
+    await getUser();
     const res = await fetchAuth(`${API}/enrolled-courses`);
-    if (!res.ok) return content.innerHTML = '<p>Error loading courses.</p>';
+    if (!res.ok) return content.innerHTML = '<p>Error loading courses. <button onclick="myCourses()" class="btn-outline text-sm">Retry</button></p>';
     const courses = await res.json();
-    if (!courses.length) return content.innerHTML = '<p>No enrolled courses. <a href="/courses.html">Browse courses</a>.</p>';
+    if (!courses.length) return content.innerHTML = '<p>No enrolled courses yet. <a href="/courses.html" class="text-accent">Browse courses</a>.</p>';
     content.innerHTML = courses.map(c => `
       <div class="card mb-4 p-4">
         <div class="flex justify-between items-center">
@@ -339,7 +342,7 @@ if (page === 'dashboard') {
                 body: JSON.stringify({ lectureId })
               });
               showToast('Lecture marked complete');
-              myCourses(); // refresh
+              myCourses(); // refresh progress
             });
           });
         } else {
@@ -690,7 +693,6 @@ if (page === 'dashboard') {
       $$(`input[name="pq${i}"]`).forEach(radio => radio.addEventListener('change', e => answers[i] = parseInt(e.target.value)));
     }
     renderPracticeQuestion(0);
-    // Simple pagination
     document.addEventListener('click', function pqNav(e) {
       if (e.target.id === 'nextQ') { if (currentQ < questions.length-1) { currentQ++; renderPracticeQuestion(currentQ); } }
       if (e.target.id === 'prevQ') { if (currentQ > 0) { currentQ--; renderPracticeQuestion(currentQ); } }
@@ -853,7 +855,6 @@ if (page === 'admin') {
       case 'students': return adminStudents();
       case 'doubts': return adminDoubtList();
       case 'broadcast': return adminBroadcast();
-      case 'reports': return adminReports(); // optional, if needed
     }
   }
 
@@ -895,7 +896,6 @@ if (page === 'admin') {
       </div>
     `;
 
-    // Add course form
     $('#addCourseBtn')?.addEventListener('click', () => showCourseForm());
     $$('.edit-course').forEach(btn => btn.addEventListener('click', async (e) => {
       const id = btn.dataset.id;
@@ -1098,8 +1098,7 @@ if (page === 'admin') {
         const courseOptions = courses.map(c => `<option value="${c._id}">${c.title}</option>`).join('');
         const courseSelect = prompt('Select course ID:\n' + courses.map(c => `${c._id} - ${c.title}`).join('\n'));
         if (courseSelect) {
-          const confirmAssign = confirm(`Assign course ${courseSelect} to this student?`);
-          if (confirmAssign) {
+          if (confirm(`Assign course ${courseSelect} to this student?`)) {
             await fetchAuth(`${API}/admin/assign-course`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1167,38 +1166,12 @@ if (page === 'admin') {
     });
   }
 
-  // Optional student report
-  async function adminReports() {
-    const res = await fetchAuth(`${API}/admin/students`);
-    const students = await res.json();
-    content.innerHTML = `<h2 class="text-2xl font-bold mb-4">Student Reports</h2>`;
-    students.forEach(s => {
-      content.innerHTML += `<div class="glass p-2 mb-2"><button class="text-accent report-btn" data-userid="${s._id}">${s.name}</button></div>`;
-    });
-    $$('.report-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const res = await fetchAuth(`${API}/admin/student-report/${btn.dataset.userid}`);
-        const report = await res.json();
-        let html = `<h3>${report.user.name}</h3>`;
-        html += `<p>Enrolled: ${report.user.enrolledCourses.map(c => c.title).join(', ')}</p>`;
-        html += `<p>Completed Lectures: ${report.user.completedLectures.length}</p>`;
-        html += `<h4>Tests</h4>`;
-        report.tests.forEach(t => html += `<p>${t.test?.title}: ${t.score}/${t.total}</p>`);
-        html += `<h4>Doubts</h4>`;
-        report.doubts.forEach(d => html += `<p>${d.question}</p>`);
-        html += `<h4>AI Conversations</h4>`;
-        report.chats.forEach(c => html += `<p>${c.role}: ${c.content}</p>`);
-        content.innerHTML = html + '<button class="btn-outline mt-2" onclick="adminStudents()">Back</button>';
-      });
-    });
-  }
-
   // Initial load
   loadAdminSection('dashboard');
   getUser();
 }
 
-// Add toast styles & other helper classes (already in CSS, but ensure they exist)
+// ---------- Toast styles ----------
 const style = document.createElement('style');
 style.textContent = `
 .toast { position:fixed; bottom:20px; right:20px; padding:12px 24px; border-radius:4px; z-index:9999; color:white; font-weight:500; box-shadow:0 4px 12px rgba(0,0,0,0.3); animation: fadeUp 0.3s ease; }
