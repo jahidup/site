@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Register – Sankalp</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body data-page="register">
+  <nav class="navbar">
+    <a href="/" class="logo">Sankalp</a>
+    <div class="nav-links">
+      <a href="/login.html">Login</a>
+    </div>
+  </nav>
+
+  <div style="min-height: 90vh; display: flex; align-items: center; justify-content: center;">
+    <div class="glass p-6 w-full max-w-md">
+      <h2 class="text-2xl font-bold mb-4 text-center">Create Account</h2>
+      <form id="registerForm">
+        <input type="text" id="regName" placeholder="Full Name" class="mb-2" required />
+        <input type="email" id="regEmail" placeholder="Email address" class="mb-2" required />
+        <input type="password" id="regPassword" placeholder="Password" class="mb-2" required />
+        <div class="flex gap-2 mb-2">
+          <input type="text" id="regOtp" placeholder="OTP" class="flex-1" required />
+          <button type="button" id="sendOtpBtn" class="btn-outline">Get OTP</button>
+        </div>
+        <button type="submit" class="btn-primary w-full">Register</button>
+      </form>
+      <p class="text-center mt-4 text-sm">
+        Already have an account? <a href="/login.html" class="text-accent">Login</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>
