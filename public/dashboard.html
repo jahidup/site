@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Dashboard – Sankalp</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body data-page="dashboard">
+  <!-- Topbar -->
+  <div class="topbar" id="topbar">
+    <button class="menu-toggle md:hidden btn-icon">☰</button>
+    <h2 class="text-xl font-semibold">Dashboard</h2>
+    <button class="btn-outline" onclick="logout()">Logout</button>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="nav-item active" data-section="my-courses">
+      <span>📚</span> My Courses
+    </div>
+    <div class="nav-item" data-section="performance">
+      <span>📊</span> Performance
+    </div>
+    <div class="nav-item" data-section="ask-doubt">
+      <span>❓</span> Ask Doubt
+    </div>
+    <div class="nav-item" data-section="my-doubts">
+      <span>📋</span> My Doubts
+    </div>
+    <div class="nav-item" data-section="ai-chat">
+      <span>🤖</span> Sankalp Sathi
+    </div>
+    <div class="nav-item" data-section="tests">
+      <span>📝</span> Tests
+    </div>
+    <div class="nav-item" data-section="practice">
+      <span>🎯</span> Practice Test
+    </div>
+    <div class="nav-item" data-section="messages">
+      <span>💬</span> Messages
+    </div>
+    <div class="nav-item" data-section="community">
+      <span>🌐</span> Community
+    </div>
+    <div class="nav-item" data-section="notifications">
+      <span>🔔</span> Notifications
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="dashboard-main" id="dashboardContent">
+    <!-- dynamically loaded -->
+  </main>
+
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>
