@@ -11,10 +11,19 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+// ✅ Trust proxy – required when running behind Vercel's reverse proxy
+app.set('trust proxy', 1);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Rate limiting
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 app.use('/api/', apiLimiter);
 
 // MongoDB connection
@@ -39,8 +48,8 @@ const userSchema = new mongoose.Schema({
 const lectureSchema = new mongoose.Schema({
   title: { type: String, required: true },
   videoUrl: { type: String, required: true },
-  notes: { type: String },
-  dppUrl: { type: String },
+  notes: String,
+  dppUrl: String,
   chapter: { type: mongoose.Schema.Types.ObjectId },
   course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', index: true }
 });
@@ -77,15 +86,15 @@ const doubtSchema = new mongoose.Schema({
 const testSchema = new mongoose.Schema({
   title: { type: String, required: true },
   course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
-  duration: { type: Number, required: true }, // in minutes
-  schedule: { type: Date },
+  duration: { type: Number, required: true }, // minutes
+  schedule: Date,
   isLive: { type: Boolean, default: false },
   negativeMarking: { type: Number, default: 0 },
   questions: [{
     questionText: { type: String, required: true },
     image: String,
     options: [String],
-    correctAnswer: { type: Number }, // index for MCQ, null for numerical
+    correctAnswer: Number,          // index for MCQ, null for numerical
     isNumerical: { type: Boolean, default: false },
     numericalAnswer: Number,
     explanation: String
@@ -185,7 +194,7 @@ app.post('/api/send-otp', async (req, res) => {
       html: `<div style="font-family:sans-serif; padding:20px; background:#0a0a0a; color:#f5f5f5;">
         <h2 style="color:#4fc3f7;">Sankalp Digital Pathshala</h2>
         <p>Your OTP is: <strong style="font-size:24px; color:#4fc3f7;">${otp}</strong></p>
-        <p>Valid for 5 minutes. Do not share this with anyone.</p>
+        <p>Valid for 5 minutes. Do not share with anyone.</p>
       </div>`
     });
     res.json({ success: true, message: 'OTP sent to email.' });
@@ -227,7 +236,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    // Login email notification (non-blocking)
+    // Login notification (non‑blocking)
     transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
@@ -260,7 +269,13 @@ app.post('/api/forgot-password', async (req, res) => {
 
 // Get current user
 app.get('/api/me', auth, async (req, res) => {
-  res.json({ id: req.user._id, name: req.user.name, email: req.user.email, isAdmin: req.user.isAdmin });
+  res.json({
+    id: req.user._id,
+    name: req.user.name,
+    email: req.user.email,
+    isAdmin: req.user.isAdmin,
+    completedLectures: req.user.completedLectures
+  });
 });
 
 // --------------------- Course & Lecture Routes ---------------------
@@ -288,7 +303,7 @@ app.get('/api/lectures/:id', async (req, res) => {
   res.json(lecture);
 });
 
-// Enrollment – done on purchase (WhatsApp redirect handled on frontend)
+// Enrollment – typically triggered after purchase
 app.post('/api/enroll', auth, async (req, res) => {
   try {
     const { courseId } = req.body;
@@ -318,7 +333,6 @@ app.post('/api/complete-lecture', auth, async (req, res) => {
 
 app.get('/api/enrolled-courses', auth, async (req, res) => {
   await req.user.populate('enrolledCourses');
-  // Calculate progress for each enrolled course
   const coursesWithProgress = await Promise.all(req.user.enrolledCourses.map(async (course) => {
     const allLectures = await Lecture.find({ course: course._id }, '_id');
     const lectureIds = allLectures.map(l => l._id.toString());
@@ -334,11 +348,7 @@ app.post('/api/doubts', auth, async (req, res) => {
   try {
     const { lectureId, question } = req.body;
     if (!question) return res.status(400).json({ error: 'Question is required.' });
-    const doubt = new Doubt({
-      user: req.user._id,
-      lecture: lectureId,
-      question
-    });
+    const doubt = new Doubt({ user: req.user._id, lecture: lectureId, question });
     await doubt.save();
     res.status(201).json(doubt);
   } catch (err) {
@@ -357,10 +367,7 @@ app.post('/api/doubts/:id/reply', auth, async (req, res) => {
   try {
     const doubt = await Doubt.findById(req.params.id);
     if (!doubt) return res.status(404).json({ error: 'Doubt not found.' });
-    doubt.replies.push({
-      user: req.user._id,
-      reply: req.body.reply
-    });
+    doubt.replies.push({ user: req.user._id, reply: req.body.reply });
     await doubt.save();
     await doubt.populate('replies.user', 'name');
     res.json(doubt);
@@ -384,7 +391,7 @@ app.get('/api/tests', auth, async (req, res) => {
 app.get('/api/tests/:id', auth, async (req, res) => {
   const test = await Test.findById(req.params.id).lean();
   if (!test) return res.status(404).json({ error: 'Test not found.' });
-  // For students, hide correct answers and numerical answers
+  // For students, hide correct answers
   if (!req.user.isAdmin) {
     test.questions = test.questions.map(q => {
       const { correctAnswer, numericalAnswer, ...rest } = q;
@@ -438,14 +445,13 @@ app.get('/api/test-results/:testId', auth, async (req, res) => {
   res.json(attempt);
 });
 
-// Practice Test – AI generated via OpenRouter
+// Practice Test – AI generated
 app.post('/api/practice-test', auth, async (req, res) => {
   const { topic, difficulty } = req.body;
   if (!topic) return res.status(400).json({ error: 'Topic is required.' });
   const prompt = `Generate exactly 10 JEE-Mains style multiple choice questions on "${topic}" with difficulty "${difficulty || 'medium'}". Each question must have 4 options (A, B, C, D), the correct answer index (0-3), and a brief explanation. Return a JSON array with objects: {"questionText": "...", "options": ["A","B","C","D"], "correctAnswer": 0, "explanation": "..."}. Do not include any text outside the JSON.`;
   try {
     const aiResponse = await askOpenRouter(prompt, false);
-    // Try to parse JSON from AI response
     let questions;
     const jsonStart = aiResponse.indexOf('[');
     const jsonEnd = aiResponse.lastIndexOf(']');
@@ -527,7 +533,7 @@ app.post('/api/ai-chat', auth, async (req, res) => {
   // Save user message
   await Chat.create({ user: req.user._id, role: 'user', content: message });
 
-  // Send response as plain text stream
+  // Send response as stream
   res.writeHead(200, {
     'Content-Type': 'text/plain; charset=utf-8',
     'Transfer-Encoding': 'chunked',
@@ -539,7 +545,6 @@ app.post('/api/ai-chat', auth, async (req, res) => {
   try {
     const reply = await askOpenRouter(message);
     fullReply = reply;
-    // Simulate streaming (or you could implement real chunking)
     res.write(reply);
     await Chat.create({ user: req.user._id, role: 'ai', content: fullReply });
   } catch (error) {
@@ -556,7 +561,6 @@ app.get('/api/ai-chat/history', auth, async (req, res) => {
 
 // --------------------- Messages (Direct) ---------------------
 app.get('/api/users', auth, async (req, res) => {
-  // List all non‑admin users for messaging
   const users = await User.find({ isAdmin: false }).select('name email');
   res.json(users);
 });
@@ -564,11 +568,7 @@ app.get('/api/users', auth, async (req, res) => {
 app.post('/api/messages', auth, async (req, res) => {
   const { receiver, message } = req.body;
   if (!receiver || !message) return res.status(400).json({ error: 'Receiver and message are required.' });
-  const msg = new Message({
-    sender: req.user._id,
-    receiver,
-    message
-  });
+  const msg = new Message({ sender: req.user._id, receiver, message });
   await msg.save();
   res.json(msg);
 });
@@ -586,10 +586,7 @@ app.get('/api/messages/:userId', auth, async (req, res) => {
 // --------------------- Community Chat ---------------------
 app.post('/api/community', auth, async (req, res) => {
   if (!req.body.message) return res.status(400).json({ error: 'Message is required.' });
-  const msg = new Message({
-    sender: req.user._id,
-    message: req.body.message
-  });
+  const msg = new Message({ sender: req.user._id, message: req.body.message });
   await msg.save();
   await msg.populate('sender', 'name');
   res.json(msg);
@@ -615,7 +612,6 @@ app.put('/api/notifications/:id/read', auth, async (req, res) => {
 });
 
 // --------------------- Admin Routes ---------------------
-// Stats
 app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     const [users, courses, doubts, tests, testAttempts] = await Promise.all([
@@ -656,7 +652,6 @@ app.delete('/api/admin/courses/:id', adminAuth, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
     if (!course) return res.status(404).json({ error: 'Course not found.' });
-    // Delete all lectures belonging to this course
     await Lecture.deleteMany({ course: course._id });
     await Course.findByIdAndDelete(req.params.id);
     res.json({ success: true });
@@ -665,7 +660,7 @@ app.delete('/api/admin/courses/:id', adminAuth, async (req, res) => {
   }
 });
 
-// Chapter management inside a course
+// Add chapter
 app.post('/api/admin/courses/:id/chapters', adminAuth, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -678,7 +673,7 @@ app.post('/api/admin/courses/:id/chapters', adminAuth, async (req, res) => {
   }
 });
 
-// Add lecture to a specific chapter
+// Add lecture to a chapter
 app.post('/api/admin/courses/:courseId/chapters/:chapterIndex/lectures', adminAuth, async (req, res) => {
   try {
     const course = await Course.findById(req.params.courseId);
@@ -725,7 +720,7 @@ app.delete('/api/admin/tests/:id', adminAuth, async (req, res) => {
   }
 });
 
-// Student management
+// Students
 app.get('/api/admin/students', adminAuth, async (req, res) => {
   const students = await User.find({ isAdmin: false })
     .select('-password')
@@ -752,7 +747,7 @@ app.post('/api/admin/assign-course', adminAuth, async (req, res) => {
   }
 });
 
-// Doubt management for admin
+// Doubt management
 app.get('/api/admin/doubts', adminAuth, async (req, res) => {
   const doubts = await Doubt.find()
     .populate('user', 'name email')
@@ -779,10 +774,7 @@ app.post('/api/admin/notify', adminAuth, async (req, res) => {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required.' });
     const students = await User.find({ isAdmin: false }).select('_id');
-    const notifs = students.map(s => ({
-      userId: s._id,
-      message
-    }));
+    const notifs = students.map(s => ({ userId: s._id, message }));
     await Notification.insertMany(notifs);
     res.json({ success: true, count: notifs.length });
   } catch (err) {
@@ -790,7 +782,7 @@ app.post('/api/admin/notify', adminAuth, async (req, res) => {
   }
 });
 
-// Detailed student report
+// Student report
 app.get('/api/admin/student-report/:id', adminAuth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
@@ -800,18 +792,7 @@ app.get('/api/admin/student-report/:id', adminAuth, async (req, res) => {
     const tests = await TestAttempt.find({ user: req.params.id }).populate('test', 'title');
     const doubts = await Doubt.find({ user: req.params.id });
     const chats = await Chat.find({ user: req.params.id });
-    res.json({
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        enrolledCourses: user.enrolledCourses,
-        completedLectures: user.completedLectures
-      },
-      tests,
-      doubts,
-      chats
-    });
+    res.json({ user, tests, doubts, chats });
   } catch (err) {
     res.status(500).json({ error: 'Failed to load report.' });
   }
