@@ -47,7 +47,7 @@ async function getUser() {
 // ==================== PAGE DETECTION ====================
 const page = document.body.dataset.page || '';
 
-// ==================== AUTH PAGES (Login, Register, Forgot) ====================
+// ==================== AUTH PAGES ====================
 if (page === 'login' || window.location.pathname.includes('login')) {
   $('#loginForm')?.addEventListener('submit', async e => {
     e.preventDefault();
@@ -132,12 +132,9 @@ async function loadFeaturedCourses() {
     const courses = await res.json();
     container.innerHTML = courses.slice(0, 3).map(c => `
       <div class="card course-card">
-        <div class="card-img" style="background: linear-gradient(135deg, #4fc3f733, #0a0a0a);">
-          <div class="p-4">
-            <h3 class="font-bold text-xl">${c.title}</h3>
-          </div>
-        </div>
+        <img src="${c.thumbnail || '/assets/images/default-course.jpg'}" alt="${c.title}" class="card-img" onerror="this.src='/assets/images/default-course.jpg'" />
         <div class="card-body">
+          <h3 class="font-bold text-xl">${c.title}</h3>
           <p class="text-secondary text-sm">${c.description?.substring(0, 100)}...</p>
           <div class="flex items-baseline gap-2 mt-2">
             <span class="price-original">₹${c.originalPrice}</span>
@@ -160,7 +157,6 @@ async function loadAllCourses() {
   try {
     const res = await fetch(`${API}/courses`);
     let courses = await res.json();
-    // Filter functionality (if exists)
     const filterBtns = $$('.filter-btn');
     const searchInput = $('#courseSearch');
     let activeCategory = 'all';
@@ -178,6 +174,7 @@ async function loadAllCourses() {
       );
       container.innerHTML = filtered.length ? filtered.map(c => `
         <div class="card course-card">
+          <img src="${c.thumbnail || '/assets/images/default-course.jpg'}" alt="${c.title}" class="card-img" onerror="this.src='/assets/images/default-course.jpg'" />
           <div class="card-body">
             <h3>${c.title}</h3>
             <p class="text-secondary text-sm">${c.description?.substring(0, 80)}...</p>
@@ -208,20 +205,20 @@ async function loadCourseDetail() {
     const course = await res.json();
     detailContainer.innerHTML = `
       <div class="glass p-6 rounded-lg">
-        <h1 class="text-3xl font-bold glow-text">${course.title}</h1>
+        <h1 class="text-3xl font-bold text-accent">${course.title}</h1>
         <p class="text-secondary mt-2">${course.description}</p>
         <div class="flex items-baseline gap-2 mt-4">
           <span class="price-original text-xl">₹${course.originalPrice}</span>
           <span class="price-discounted text-2xl">₹${course.price}</span>
         </div>
-        <a href="https://wa.me/919876543210?text=I%20want%20to%20purchase%20${course.title}" class="btn-primary mt-4 inline-block">Buy Now (WhatsApp)</a>
+        <a href="https://wa.me/919876543210?text=I%20want%20to%20purchase%20${encodeURIComponent(course.title)}" class="btn-primary mt-4 inline-block">Buy Now (WhatsApp)</a>
         <div class="mt-6">
           <h3 class="text-xl font-semibold mb-2">Chapters</h3>
           ${course.chapters.map((ch, i) => `
             <div class="mb-3">
               <h4 class="font-medium">Chapter ${i+1}: ${ch.title}</h4>
               <ul class="ml-4 text-sm text-secondary">
-                ${ch.lectures.map(l => `<li>• ${l.title || l}</li>`).join('')}
+                ${ch.lectures.map(l => `<li>• ${(l.title || l)}</li>`).join('')}
               </ul>
             </div>
           `).join('')}
@@ -295,8 +292,8 @@ if (page === 'dashboard') {
           <h3 class="text-xl font-bold">${c.title}</h3>
           <span class="text-accent">${c.progress}%</span>
         </div>
-        <div class="progress-bar mt-2 bg-gray-700 h-2 rounded">
-          <div class="bg-accent h-full rounded" style="width:${c.progress}%"></div>
+        <div class="progress-bar mt-2">
+          <div style="width:${c.progress}%"></div>
         </div>
         <div class="mt-2 cursor-pointer lecture-toggle" data-course="${c._id}">View Lectures ▼</div>
         <div class="lecture-list hidden mt-2"></div>
@@ -321,7 +318,7 @@ if (page === 'dashboard') {
               <p><a href="${l.videoUrl}" target="_blank" class="btn-outline text-sm">Watch Video</a></p>
               ${l.notes ? `<p class="text-sm mt-1">Notes: ${l.notes}</p>` : ''}
               ${l.dppUrl ? `<a href="${l.dppUrl}" target="_blank" class="btn-outline text-sm mt-1">Download DPP</a>` : ''}
-              <button class="btn-primary text-sm mt-2 mark-complete" data-lecture="${l._id}">Mark Complete</button>
+              <button class="btn-primary text-sm mt-2 mark-complete" data-lecture="${l._id}" onclick="event.stopPropagation()">Mark Complete</button>
             </div>
           `).join('');
           // Expandable mobile
@@ -357,8 +354,8 @@ if (page === 'dashboard') {
   async function performance() {
     const res = await fetchAuth(`${API}/enrolled-courses`);
     const courses = await res.json();
-    const completedRes = await fetchAuth(`${API}/me`);
-    const user = await completedRes.json();
+    const userRes = await fetchAuth(`${API}/me`);
+    const user = await userRes.json();
     content.innerHTML = '<h2 class="text-2xl font-bold mb-4">Performance Report</h2>';
     if (!courses.length) return content.innerHTML += '<p>No courses enrolled.</p>';
     courses.forEach(c => {
@@ -369,7 +366,6 @@ if (page === 'dashboard') {
 
   // ---------- Ask Doubt ----------
   async function askDoubt() {
-    // Load courses and lectures for selection
     const res = await fetchAuth(`${API}/enrolled-courses`);
     const courses = await res.json();
     let lectureOptions = '';
@@ -377,14 +373,14 @@ if (page === 'dashboard') {
       const detail = await fetchAuth(`${API}/courses/${c._id}`);
       const course = await detail.json();
       course.chapters.forEach(ch => ch.lectures.forEach(l => {
-        lectureOptions += `<option value="${l._id}">${c.title} → ${l.title}</option>`;
+        lectureOptions += `<option value="${l._id}">${c.title} → ${l.title || 'Lecture'}</option>`;
       }));
     }
     content.innerHTML = `
       <h2 class="text-xl font-bold mb-4">Ask a Doubt</h2>
       <select id="doubtLecture" class="mb-2">${lectureOptions}</select>
       <textarea id="doubtQuestion" rows="3" placeholder="Describe your doubt..." class="mb-2"></textarea>
-      <button id="submitDoubt" class="btn-primary">Submit Doubt</button>
+      <button id="submitDoubt" class="btn-primary">Submit</button>
       <div id="doubtReplyArea" class="mt-4"></div>
     `;
     $('#submitDoubt')?.addEventListener('click', async () => {
@@ -434,7 +430,6 @@ if (page === 'dashboard') {
         </div>
       `;
     });
-    // Read more expand
     $$('.read-more').forEach(btn => {
       btn.addEventListener('click', () => {
         const text = btn.previousElementSibling;
@@ -459,7 +454,6 @@ if (page === 'dashboard') {
     const input = $('#chatInput');
     const send = $('#sendChat');
 
-    // Load history
     const histRes = await fetchAuth(`${API}/ai-chat/history`);
     const history = await histRes.json();
     history.forEach(c => appendMessage(c.role, c.content));
@@ -477,7 +471,10 @@ if (page === 'dashboard') {
       if (!msg) return;
       appendMessage('user', msg);
       input.value = '';
-      appendMessage('ai', '...');
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'mb-2 text-accent';
+      loadingDiv.textContent = 'Sathi: ...';
+      msgDiv.appendChild(loadingDiv);
       try {
         const res = await fetchAuth(`${API}/ai-chat`, {
           method: 'POST',
@@ -486,17 +483,16 @@ if (page === 'dashboard') {
         });
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        const aiDiv = msgDiv.lastChild;
-        aiDiv.textContent = 'Sathi: ';
+        loadingDiv.textContent = 'Sathi: ';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          aiDiv.textContent += decoder.decode(value);
+          loadingDiv.textContent += decoder.decode(value);
           msgDiv.scrollTop = msgDiv.scrollHeight;
         }
       } catch {
         showToast('AI unavailable', 'error');
-        msgDiv.lastChild.remove();
+        loadingDiv.remove();
       }
     });
     input.addEventListener('keypress', e => { if (e.key === 'Enter') send.click(); });
@@ -534,8 +530,8 @@ if (page === 'dashboard') {
         <div id="timer" class="text-accent font-bold">${test.duration}:00</div>
         <button id="submitTest" class="btn-primary">Submit</button>
       </div>
-      <div class="flex gap-4">
-        <div id="questionPalette" class="w-1/4 glass p-3">
+      <div class="flex flex-col md:flex-row gap-4">
+        <div id="questionPalette" class="w-full md:w-1/4 glass p-3">
           <h3 class="text-lg mb-2">Questions</h3>
           <div class="grid grid-cols-5 gap-1">
             ${test.questions.map((_, i) => `<div class="palette-item w-8 h-8 flex items-center justify-center border cursor-pointer" data-q="${i}">${i+1}</div>`).join('')}
@@ -549,6 +545,7 @@ if (page === 'dashboard') {
     let currentQ = 0;
     const paletteItems = $$('.palette-item');
     const questionDiv = $('#questionArea');
+    const markedForReview = new Set();
 
     function renderQuestion(i) {
       const q = test.questions[i];
@@ -580,7 +577,6 @@ if (page === 'dashboard') {
       updatePalette();
     }
 
-    const markedForReview = new Set();
     function updatePalette() {
       paletteItems.forEach((item, idx) => {
         item.className = 'palette-item w-8 h-8 flex items-center justify-center border cursor-pointer';
@@ -632,7 +628,6 @@ if (page === 'dashboard') {
       });
       const result = await res.json();
       showToast(`Score: ${result.score}/${result.total}`);
-      // Show explanations
       const fullTest = await (await fetchAuth(`${API}/tests/${testId}`)).json();
       let explHtml = '<h3 class="text-lg mt-4">Explanations</h3>';
       fullTest.questions.forEach((q, i) => {
@@ -674,7 +669,6 @@ if (page === 'dashboard') {
   }
 
   function startPracticeTest(questions) {
-    // Similar to startTest but with local questions, no server submit except for AI explanation
     let answers = Array(questions.length).fill(null);
     let currentQ = 0;
     const area = $('#practiceArea');
@@ -696,11 +690,16 @@ if (page === 'dashboard') {
       $$(`input[name="pq${i}"]`).forEach(radio => radio.addEventListener('change', e => answers[i] = parseInt(e.target.value)));
     }
     renderPracticeQuestion(0);
+    // Simple pagination
+    document.addEventListener('click', function pqNav(e) {
+      if (e.target.id === 'nextQ') { if (currentQ < questions.length-1) { currentQ++; renderPracticeQuestion(currentQ); } }
+      if (e.target.id === 'prevQ') { if (currentQ > 0) { currentQ--; renderPracticeQuestion(currentQ); } }
+    });
+    area.insertAdjacentHTML('beforeend', `<div class="flex justify-between mt-2"><button id="prevQ" class="btn-outline">Prev</button><button id="nextQ" class="btn-outline">Next</button></div>`);
     $('#submitPractice')?.addEventListener('click', () => {
       let score = 0;
       questions.forEach((q, i) => { if (answers[i] === q.correctAnswer) score++; });
       showToast(`Your score: ${score}/${questions.length}`);
-      // Show explanations
       let expl = '';
       questions.forEach((q, i) => {
         if (answers[i] !== q.correctAnswer) expl += `<p><strong>Q${i+1}:</strong> ${q.explanation}</p>`;
@@ -714,8 +713,8 @@ if (page === 'dashboard') {
     const usersRes = await fetchAuth(`${API}/users`);
     const users = await usersRes.json();
     content.innerHTML = `
-      <div class="flex gap-4 h-[80vh]">
-        <div id="userList" class="w-1/3 glass p-3 overflow-y-auto">
+      <div class="flex flex-col md:flex-row gap-4 h-[80vh]">
+        <div id="userList" class="w-full md:w-1/3 glass p-3 overflow-y-auto">
           ${users.map(u => `<div class="user-item cursor-pointer p-2 hover:bg-gray-800" data-id="${u._id}">${u.name}</div>`).join('')}
         </div>
         <div id="chatArea" class="flex-1 flex flex-col glass p-3">
@@ -732,7 +731,7 @@ if (page === 'dashboard') {
       ui.addEventListener('click', () => {
         activeUser = ui.dataset.id;
         loadChat(activeUser);
-        $$('.user-item').forEach(u => u.classList.remove('bg-accent'));
+        $$('.user-item').forEach(u => u.classList.remove('bg-accent', 'text-black'));
         ui.classList.add('bg-accent', 'text-black');
       });
     });
@@ -740,7 +739,7 @@ if (page === 'dashboard') {
       const res = await fetchAuth(`${API}/messages/${userId}`);
       const msgs = await res.json();
       const list = $('#messageList');
-      list.innerHTML = msgs.map(m => `<div class="mb-1"><strong>${m.sender.name || 'You'}:</strong> ${m.message}</div>`).join('');
+      list.innerHTML = msgs.map(m => `<div class="mb-1"><strong>${m.sender?.name || 'You'}:</strong> ${m.message}</div>`).join('');
       list.scrollTop = list.scrollHeight;
     }
     $('#sendMessage')?.addEventListener('click', async () => {
@@ -785,7 +784,7 @@ if (page === 'dashboard') {
       $('#communityInput').value = '';
       loadCommunity();
     });
-    setInterval(loadCommunity, 10000); // auto‑refresh
+    setInterval(loadCommunity, 10000);
   }
 
   // ---------- Notifications ----------
@@ -819,6 +818,7 @@ if (page === 'dashboard') {
 if (page === 'admin') {
   const sidebar = $('#adminSidebar');
   const content = $('#adminContent');
+  const topbar = $('#adminTopbar');
 
   $$('#adminSidebar .nav-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -827,10 +827,25 @@ if (page === 'admin') {
     });
   });
 
+  $('.menu-toggle')?.addEventListener('click', () => sidebar.classList.toggle('mobile-open'));
+
+  let lastScroll = 0;
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    if (y > lastScroll && y > 100) {
+      topbar.classList.add('hidden');
+      sidebar.classList.add('hidden');
+    } else {
+      topbar.classList.remove('hidden');
+      sidebar.classList.remove('hidden');
+    }
+    lastScroll = y;
+  });
+
   async function loadAdminSection(section) {
     $$('#adminSidebar .nav-item').forEach(i => i.classList.remove('active'));
     document.querySelector(`#adminSidebar .nav-item[data-section="${section}"]`)?.classList.add('active');
-    content.innerHTML = 'Loading...';
+    content.innerHTML = '<div class="text-center py-10">Loading...</div>';
     switch(section) {
       case 'dashboard': return adminDashboard();
       case 'courses': return adminCourses();
@@ -838,6 +853,7 @@ if (page === 'admin') {
       case 'students': return adminStudents();
       case 'doubts': return adminDoubtList();
       case 'broadcast': return adminBroadcast();
+      case 'reports': return adminReports(); // optional, if needed
     }
   }
 
@@ -847,14 +863,16 @@ if (page === 'admin') {
     content.innerHTML = `
       <h2 class="text-2xl font-bold mb-4">Admin Dashboard</h2>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="glass p-4 text-center"><h3>${stats.users}</h3><p>Students</p></div>
-        <div class="glass p-4 text-center"><h3>${stats.courses}</h3><p>Courses</p></div>
-        <div class="glass p-4 text-center"><h3>${stats.doubts}</h3><p>Doubts</p></div>
-        <div class="glass p-4 text-center"><h3>${stats.tests}</h3><p>Tests</p></div>
+        <div class="stat-box"><h3>${stats.users}</h3><p>Students</p></div>
+        <div class="stat-box"><h3>${stats.courses}</h3><p>Courses</p></div>
+        <div class="stat-box"><h3>${stats.doubts}</h3><p>Doubts</p></div>
+        <div class="stat-box"><h3>${stats.tests}</h3><p>Tests</p></div>
+        <div class="stat-box"><h3>${stats.testAttempts}</h3><p>Attempts</p></div>
       </div>
     `;
   }
 
+  // ---------- Manage Courses ----------
   async function adminCourses() {
     const res = await fetchAuth(`${API}/courses`);
     const courses = await res.json();
@@ -863,35 +881,332 @@ if (page === 'admin') {
         <h2 class="text-2xl font-bold">Manage Courses</h2>
         <button id="addCourseBtn" class="btn-primary">Add Course</button>
       </div>
-      <div id="courseForm" class="hidden glass p-4 mb-4"></div>
-      <div id="courseList">${courses.map(c => `
-        <div class="glass p-3 mb-2 flex justify-between items-center">
-          <span>${c.title}</span>
-          <div>
-            <button class="edit-course btn-outline text-xs" data-id="${c._id}">Edit</button>
-            <button class="delete-course btn-outline text-xs text-danger" data-id="${c._id}">Delete</button>
+      <div id="courseFormContainer" class="hidden glass p-4 mb-4"></div>
+      <div id="courseList">
+        ${courses.map(c => `
+          <div class="glass p-3 mb-2 flex justify-between items-center">
+            <span>${c.title}</span>
+            <div>
+              <button class="edit-course btn-outline text-xs" data-id="${c._id}">Edit</button>
+              <button class="delete-course btn-outline text-xs text-danger" data-id="${c._id}">Delete</button>
+            </div>
           </div>
-        </div>
-      `).join('')}</div>
+        `).join('')}
+      </div>
     `;
-    // Add/Edit forms, delete etc. (Code omitted for brevity, fully functional)
-    // ... Same pattern as dashboard but admin endpoints
+
+    // Add course form
+    $('#addCourseBtn')?.addEventListener('click', () => showCourseForm());
+    $$('.edit-course').forEach(btn => btn.addEventListener('click', async (e) => {
+      const id = btn.dataset.id;
+      const course = courses.find(c => c._id === id);
+      showCourseForm(course);
+    }));
+    $$('.delete-course').forEach(btn => btn.addEventListener('click', async () => {
+      if (confirm('Delete this course?')) {
+        await fetchAuth(`${API}/admin/courses/${btn.dataset.id}`, { method: 'DELETE' });
+        adminCourses();
+      }
+    }));
   }
 
-  // adminTests, adminStudents, adminDoubtList, adminBroadcast follow similar patterns
-  // using fetchAuth with appropriate admin endpoints.
+  function showCourseForm(existing = null) {
+    const container = $('#courseFormContainer');
+    container.classList.remove('hidden');
+    const isEdit = !!existing;
+    container.innerHTML = `
+      <h3>${isEdit ? 'Edit' : 'Add'} Course</h3>
+      <input id="courseTitle" placeholder="Title" value="${existing?.title || ''}" class="mb-2" />
+      <textarea id="courseDesc" placeholder="Description" class="mb-2">${existing?.description || ''}</textarea>
+      <input id="coursePrice" type="number" placeholder="Price" value="${existing?.price || ''}" class="mb-2" />
+      <input id="courseOriginalPrice" type="number" placeholder="Original Price" value="${existing?.originalPrice || ''}" class="mb-2" />
+      <input id="courseThumbnail" placeholder="Thumbnail URL" value="${existing?.thumbnail || ''}" class="mb-2" />
+      <input id="courseTeacher" placeholder="Teacher" value="${existing?.teacher || ''}" class="mb-2" />
+      <input id="courseDuration" placeholder="Duration" value="${existing?.duration || ''}" class="mb-2" />
+      <input id="courseCategory" placeholder="Category (jee/neet/foundation)" value="${existing?.category || ''}" class="mb-2" />
+      <div class="flex gap-2">
+        <button id="saveCourse" class="btn-primary">Save</button>
+        <button id="cancelCourse" class="btn-outline">Cancel</button>
+      </div>
+    `;
+    $('#saveCourse')?.addEventListener('click', async () => {
+      const data = {
+        title: $('#courseTitle').value,
+        description: $('#courseDesc').value,
+        price: Number($('#coursePrice').value),
+        originalPrice: Number($('#courseOriginalPrice').value),
+        thumbnail: $('#courseThumbnail').value,
+        teacher: $('#courseTeacher').value,
+        duration: $('#courseDuration').value,
+        category: $('#courseCategory').value,
+      };
+      let url = `${API}/admin/courses`;
+      let method = 'POST';
+      if (isEdit) { url += `/${existing._id}`; method = 'PUT'; }
+      const res = await fetchAuth(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      if (res.ok) {
+        showToast('Course saved');
+        container.classList.add('hidden');
+        adminCourses();
+      } else {
+        const err = await res.json();
+        showToast(err.error, 'error');
+      }
+    });
+    $('#cancelCourse')?.addEventListener('click', () => container.classList.add('hidden'));
+  }
 
+  // ---------- Manage Tests ----------
+  async function adminTests() {
+    const res = await fetchAuth(`${API}/tests`);
+    const tests = await res.json();
+    content.innerHTML = `
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold">Manage Tests</h2>
+        <button id="addTestBtn" class="btn-primary">Add Test</button>
+      </div>
+      <div id="testFormContainer" class="hidden glass p-4 mb-4"></div>
+      <div id="testList">
+        ${tests.map(t => `
+          <div class="glass p-3 mb-2 flex justify-between items-center">
+            <span>${t.title}</span>
+            <div>
+              <button class="edit-test btn-outline text-xs" data-id="${t._id}">Edit</button>
+              <button class="delete-test btn-outline text-xs text-danger" data-id="${t._id}">Delete</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    $('#addTestBtn')?.addEventListener('click', () => showTestForm());
+    $$('.edit-test').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const test = tests.find(t => t._id === id);
+      showTestForm(test);
+    }));
+    $$('.delete-test').forEach(btn => btn.addEventListener('click', async () => {
+      if (confirm('Delete test?')) {
+        await fetchAuth(`${API}/admin/tests/${btn.dataset.id}`, { method: 'DELETE' });
+        adminTests();
+      }
+    }));
+  }
+
+  async function showTestForm(existing = null) {
+    const coursesRes = await fetchAuth(`${API}/courses`);
+    const courses = await coursesRes.json();
+    const container = $('#testFormContainer');
+    container.classList.remove('hidden');
+    const isEdit = !!existing;
+    let questionsHtml = '';
+    if (existing?.questions) {
+      questionsHtml = existing.questions.map((q, i) => `
+        <div class="glass p-2 mb-1">
+          <input value="${q.questionText}" data-qidx="${i}" class="qtext mb-1" placeholder="Question text" />
+          <div class="qoptions">${q.options ? q.options.map((opt, oi) => `<input value="${opt}" data-qidx="${i}" data-oidx="${oi}" class="qopt mb-1" placeholder="Option ${oi+1}" />`).join('') : ''}</div>
+          <input value="${q.correctAnswer ?? ''}" data-qidx="${i}" class="qcorrect" placeholder="Correct answer index (0-3)" />
+          <input value="${q.explanation || ''}" data-qidx="${i}" class="qexpl" placeholder="Explanation" />
+        </div>
+      `).join('');
+    }
+    container.innerHTML = `
+      <h3>${isEdit ? 'Edit' : 'Add'} Test</h3>
+      <input id="testTitle" placeholder="Title" value="${existing?.title || ''}" class="mb-2" />
+      <select id="testCourse" class="mb-2">
+        <option value="">Select Course</option>
+        ${courses.map(c => `<option value="${c._id}" ${existing?.course === c._id ? 'selected' : ''}>${c.title}</option>`).join('')}
+      </select>
+      <input id="testDuration" type="number" placeholder="Duration (min)" value="${existing?.duration || ''}" class="mb-2" />
+      <input id="testNegativeMarking" type="number" step="0.25" placeholder="Negative marking" value="${existing?.negativeMarking || 0}" class="mb-2" />
+      <label class="block mb-2"><input type="checkbox" id="testLive" ${existing?.isLive ? 'checked' : ''}> Live</label>
+      <div id="questionsContainer">${questionsHtml}</div>
+      <button id="addQuestionBtn" class="btn-outline mb-2">Add Question</button>
+      <div class="flex gap-2">
+        <button id="saveTest" class="btn-primary">Save</button>
+        <button id="cancelTest" class="btn-outline">Cancel</button>
+      </div>
+    `;
+
+    $('#addQuestionBtn')?.addEventListener('click', () => {
+      const qDiv = document.createElement('div');
+      qDiv.className = 'glass p-2 mb-1';
+      qDiv.innerHTML = `
+        <input class="qtext mb-1" placeholder="Question text" />
+        <input class="qopt mb-1" placeholder="Option A" />
+        <input class="qopt mb-1" placeholder="Option B" />
+        <input class="qopt mb-1" placeholder="Option C" />
+        <input class="qopt mb-1" placeholder="Option D" />
+        <input class="qcorrect mb-1" placeholder="Correct answer (0-3)" />
+        <input class="qexpl mb-1" placeholder="Explanation" />
+      `;
+      $('#questionsContainer').appendChild(qDiv);
+    });
+
+    $('#saveTest')?.addEventListener('click', async () => {
+      const questions = [...$$('#questionsContainer .glass')].map(qDiv => {
+        const qtext = qDiv.querySelector('.qtext')?.value;
+        const opts = [...qDiv.querySelectorAll('.qopt')].map(i => i.value).filter(Boolean);
+        const correct = parseInt(qDiv.querySelector('.qcorrect')?.value);
+        const expl = qDiv.querySelector('.qexpl')?.value;
+        return { questionText: qtext, options: opts, correctAnswer: isNaN(correct) ? null : correct, isNumerical: opts.length === 0, numericalAnswer: null, explanation: expl };
+      }).filter(q => q.questionText);
+      const data = {
+        title: $('#testTitle').value,
+        course: $('#testCourse').value || null,
+        duration: Number($('#testDuration').value),
+        negativeMarking: Number($('#testNegativeMarking').value),
+        isLive: $('#testLive').checked,
+        questions
+      };
+      let url = `${API}/admin/tests`;
+      let method = 'POST';
+      if (isEdit) { url += `/${existing._id}`; method = 'PUT'; }
+      const res = await fetchAuth(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      if (res.ok) {
+        showToast('Test saved');
+        container.classList.add('hidden');
+        adminTests();
+      } else {
+        const err = await res.json();
+        showToast(err.error, 'error');
+      }
+    });
+    $('#cancelTest')?.addEventListener('click', () => container.classList.add('hidden'));
+  }
+
+  // ---------- Students ----------
+  async function adminStudents() {
+    const res = await fetchAuth(`${API}/admin/students`);
+    const students = await res.json();
+    content.innerHTML = `<h2 class="text-2xl font-bold mb-4">Students (${students.length})</h2>`;
+    students.forEach(s => {
+      content.innerHTML += `
+        <div class="glass p-3 mb-2">
+          <p><strong>${s.name}</strong> (${s.email})</p>
+          <p>Courses: ${s.enrolledCourses.map(c => c.title).join(', ') || 'None'}</p>
+          <p>Completed Lectures: ${s.completedLecturesCount}</p>
+          <button class="btn-outline text-xs assign-course-btn" data-userid="${s._id}">Assign Course</button>
+        </div>
+      `;
+    });
+    $$('.assign-course-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const userId = btn.dataset.userid;
+        const coursesRes = await fetchAuth(`${API}/courses`);
+        const courses = await coursesRes.json();
+        const courseOptions = courses.map(c => `<option value="${c._id}">${c.title}</option>`).join('');
+        const courseSelect = prompt('Select course ID:\n' + courses.map(c => `${c._id} - ${c.title}`).join('\n'));
+        if (courseSelect) {
+          const confirmAssign = confirm(`Assign course ${courseSelect} to this student?`);
+          if (confirmAssign) {
+            await fetchAuth(`${API}/admin/assign-course`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId, courseId: courseSelect })
+            });
+            showToast('Course assigned');
+            adminStudents();
+          }
+        }
+      });
+    });
+  }
+
+  // ---------- Doubt Management ----------
+  async function adminDoubtList() {
+    const res = await fetchAuth(`${API}/admin/doubts`);
+    const doubts = await res.json();
+    content.innerHTML = `<h2 class="text-2xl font-bold mb-4">Doubts</h2>`;
+    if (!doubts.length) return content.innerHTML += '<p>No doubts yet.</p>';
+    doubts.forEach(d => {
+      content.innerHTML += `
+        <div class="glass p-3 mb-2">
+          <p><strong>${d.user?.name || 'Unknown'}</strong> (${d.lecture?.title || 'N/A'})</p>
+          <p>${d.question}</p>
+          <div class="text-sm">Replies: ${d.replies.length}</div>
+          <button class="btn-outline text-xs reply-doubt-btn" data-id="${d._id}">Reply</button>
+        </div>
+      `;
+    });
+    $$('.reply-doubt-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const doubtId = btn.dataset.id;
+        const reply = prompt('Enter reply:');
+        if (reply) {
+          await fetchAuth(`${API}/admin/doubts/${doubtId}/reply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reply })
+          });
+          showToast('Reply posted');
+          adminDoubtList();
+        }
+      });
+    });
+  }
+
+  // ---------- Broadcast ----------
+  async function adminBroadcast() {
+    content.innerHTML = `
+      <h2 class="text-2xl font-bold mb-4">Broadcast Notification</h2>
+      <textarea id="broadcastMsg" rows="3" placeholder="Message to all students..." class="mb-2"></textarea>
+      <button id="sendBroadcast" class="btn-primary">Send</button>
+    `;
+    $('#sendBroadcast')?.addEventListener('click', async () => {
+      const message = $('#broadcastMsg').value.trim();
+      if (!message) return showToast('Enter a message', 'error');
+      const res = await fetchAuth(`${API}/admin/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+      const data = await res.json();
+      if (data.success) showToast(`Sent to ${data.count} students`);
+      else showToast(data.error, 'error');
+    });
+  }
+
+  // Optional student report
+  async function adminReports() {
+    const res = await fetchAuth(`${API}/admin/students`);
+    const students = await res.json();
+    content.innerHTML = `<h2 class="text-2xl font-bold mb-4">Student Reports</h2>`;
+    students.forEach(s => {
+      content.innerHTML += `<div class="glass p-2 mb-2"><button class="text-accent report-btn" data-userid="${s._id}">${s.name}</button></div>`;
+    });
+    $$('.report-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const res = await fetchAuth(`${API}/admin/student-report/${btn.dataset.userid}`);
+        const report = await res.json();
+        let html = `<h3>${report.user.name}</h3>`;
+        html += `<p>Enrolled: ${report.user.enrolledCourses.map(c => c.title).join(', ')}</p>`;
+        html += `<p>Completed Lectures: ${report.user.completedLectures.length}</p>`;
+        html += `<h4>Tests</h4>`;
+        report.tests.forEach(t => html += `<p>${t.test?.title}: ${t.score}/${t.total}</p>`);
+        html += `<h4>Doubts</h4>`;
+        report.doubts.forEach(d => html += `<p>${d.question}</p>`);
+        html += `<h4>AI Conversations</h4>`;
+        report.chats.forEach(c => html += `<p>${c.role}: ${c.content}</p>`);
+        content.innerHTML = html + '<button class="btn-outline mt-2" onclick="adminStudents()">Back</button>';
+      });
+    });
+  }
+
+  // Initial load
   loadAdminSection('dashboard');
   getUser();
 }
 
-// Add CSS classes for toasts
+// Add toast styles & other helper classes (already in CSS, but ensure they exist)
 const style = document.createElement('style');
 style.textContent = `
-.toast { position:fixed; bottom:20px; right:20px; padding:12px 24px; border-radius:4px; z-index:9999; color:white; }
+.toast { position:fixed; bottom:20px; right:20px; padding:12px 24px; border-radius:4px; z-index:9999; color:white; font-weight:500; box-shadow:0 4px 12px rgba(0,0,0,0.3); animation: fadeUp 0.3s ease; }
 .toast-success { background:#2ecc71; }
 .toast-error { background:#ff4d6d; }
 .palette-item.answered { background:#4fc3f7; color:#000; }
-.progress-bar { background:#333; }
+.progress-bar { background:#333; height:8px; border-radius:4px; overflow:hidden; }
+.progress-bar > div { background:var(--accent); height:100%; border-radius:4px; transition:width 0.4s ease; }
+.stat-box { background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:20px; text-align:center; }
 `;
 document.head.appendChild(style);
