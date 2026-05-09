@@ -3,14 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>Sankalp Digital Pathshala</title>
+  <title>Sankalp Digital Pathshala – Learn Without Limits</title>
   <link rel="stylesheet" href="/assets/css/style.css">
-  <style>
-    /* Additional inline if needed; most are in style.css */
-  </style>
 </head>
 <body data-page="home">
-  <!-- Navbar -->
+
+  <!-- ===== NAVBAR ===== -->
   <nav class="navbar" id="navbar">
     <a href="/" class="logo">Sankalp</a>
     <div class="nav-links">
@@ -21,7 +19,7 @@
     </div>
   </nav>
 
-  <!-- Hero -->
+  <!-- ===== HERO ===== -->
   <section class="hero">
     <div class="hero-content animate-fade-up">
       <h1>Learn <span>without limits</span></h1>
@@ -33,30 +31,80 @@
     </div>
   </section>
 
-  <!-- Featured Courses -->
-  <section style="padding: 60px 4%;">
-    <h2 class="text-2xl font-bold mb-4 text-center">Featured Courses</h2>
+  <!-- ===== FEATURED COURSES (dynamic) ===== -->
+  <section class="section">
+    <h2 class="section-title">Featured Courses</h2>
     <div id="featuredCourses" class="course-grid max-w-6xl mx-auto">
-      <!-- Dynamically loaded by app.js -->
+      <!-- loaded by app.js -->
     </div>
   </section>
 
-  <!-- Milestones / Features (static preview) -->
-  <section style="padding: 40px 4%; background: var(--bg-secondary);">
-    <div class="max-w-6xl mx-auto">
-      <h2 class="text-2xl font-bold mb-4">Why Sankalp?</h2>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="stat-box"><div class="text-accent font-bold">5000+</div>Students</div>
-        <div class="stat-box"><div class="text-accent font-bold">50+</div>Courses</div>
-        <div class="stat-box"><div class="text-accent font-bold">24/7</div>AI Support</div>
-        <div class="stat-box"><div class="text-accent font-bold">100%</div>Free Material</div>
+  <!-- ===== DASHBOARD FEATURES SHOWCASE ===== -->
+  <section class="section features-section">
+    <h2 class="section-title">Everything you get inside your dashboard</h2>
+    <div class="features-grid">
+      <div class="feature-card glass">
+        <span class="feature-icon">📚</span>
+        <h3>My Courses</h3>
+        <p>All enrolled courses with chapters & lectures, progress tracking, and one‑click video access.</p>
+      </div>
+      <div class="feature-card glass">
+        <span class="feature-icon">📊</span>
+        <h3>Performance Report</h3>
+        <p>Live completion stats, lecture‑wise logs, and overall course progress in a clean dashboard.</p>
+      </div>
+      <div class="feature-card glass">
+        <span class="feature-icon">🤖</span>
+        <h3>Sankalp Sathi (AI)</h3>
+        <p>Your 24/7 AI tutor – ask doubts, get explanations, and learn faster with OpenRouter models.</p>
+      </div>
+      <div class="feature-card glass">
+        <span class="feature-icon">📝</span>
+        <h3>Tests (JEE/NEET)</h3>
+        <p>Timed tests with negative marking, question palette, mark‑for‑review, and AI explanations.</p>
+      </div>
+      <div class="feature-card glass">
+        <span class="feature-icon">🎯</span>
+        <h3>Practice Test Generator</h3>
+        <p>AI creates 10 custom questions on any topic & difficulty – instant practise anywhere.</p>
+      </div>
+      <div class="feature-card glass">
+        <span class="feature-icon">💬</span>
+        <h3>Direct Messages</h3>
+        <p>Chat one‑on‑one with classmates or admins inside the platform – no third‑party tools needed.</p>
+      </div>
+      <div class="feature-card glass">
+        <span class="feature-icon">🌐</span>
+        <h3>Community Chat</h3>
+        <p>Join the community channel, discuss topics, share resources, and stay motivated together.</p>
+      </div>
+      <div class="feature-card glass">
+        <span class="feature-icon">🔔</span>
+        <h3>Notifications</h3>
+        <p>Receive instant broadcast updates from admin – new tests, courses, announcements.</p>
+      </div>
+      <div class="feature-card glass">
+        <span class="feature-icon">❓</span>
+        <h3>Doubt Forum</h3>
+        <p>Post doubts per lecture, get threaded replies from teachers and peers. Never stuck again.</p>
       </div>
     </div>
   </section>
 
-  <!-- Footer -->
-  <footer style="border-top: 1px solid var(--border); padding: 20px 4%; text-align: center; color: var(--text-muted);">
-    &copy; 2025 Sankalp Digital Pathshala – Powered by NexGenAiTech
+  <!-- ===== WHY SANKALP? (stats) ===== -->
+  <section class="section stats-section">
+    <h2 class="section-title">Why Sankalp?</h2>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-number">5000+</div><p>Students</p></div>
+      <div class="stat-box"><div class="stat-number">50+</div><p>Courses</p></div>
+      <div class="stat-box"><div class="stat-number">24/7</div><p>AI Support</p></div>
+      <div class="stat-box"><div class="stat-number">100%</div><p>Free Material</p></div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <p>&copy; 2025 Sankalp Digital Pathshala – Powered by NexGenAiTech</p>
   </footer>
 
   <script src="/assets/js/app.js"></script>
