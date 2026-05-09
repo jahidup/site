@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Login – Sankalp</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body data-page="login">
+  <nav class="navbar">
+    <a href="/" class="logo">Sankalp</a>
+    <div class="nav-links">
+      <a href="/register.html">Register</a>
+    </div>
+  </nav>
+
+  <div style="min-height: 90vh; display: flex; align-items: center; justify-content: center;">
+    <div class="glass p-6 w-full max-w-md">
+      <h2 class="text-2xl font-bold mb-4 text-center">Welcome Back</h2>
+      <form id="loginForm">
+        <input type="email" id="loginEmail" placeholder="Email address" class="mb-2" required />
+        <input type="password" id="loginPassword" placeholder="Password" class="mb-4" required />
+        <button type="submit" class="btn-primary w-full">Login</button>
+      </form>
+      <p class="text-center mt-4 text-sm">
+        <a href="/forgot-password.html" class="text-accent">Forgot password?</a>
+        &nbsp;|&nbsp;
+        <a href="/register.html">Create account</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>
