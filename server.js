@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ✅ Trust proxy – required when running behind Vercel's reverse proxy
+// ✅ Trust proxy – required for Vercel
 app.set('trust proxy', 1);
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -86,7 +86,7 @@ const doubtSchema = new mongoose.Schema({
 const testSchema = new mongoose.Schema({
   title: { type: String, required: true },
   course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
-  duration: { type: Number, required: true }, // minutes
+  duration: { type: Number, required: true },
   schedule: Date,
   isLive: { type: Boolean, default: false },
   negativeMarking: { type: Number, default: 0 },
@@ -94,7 +94,7 @@ const testSchema = new mongoose.Schema({
     questionText: { type: String, required: true },
     image: String,
     options: [String],
-    correctAnswer: Number,          // index for MCQ, null for numerical
+    correctAnswer: Number,
     isNumerical: { type: Boolean, default: false },
     numericalAnswer: Number,
     explanation: String
@@ -142,7 +142,7 @@ const Message = mongoose.model('Message', messageSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
 const Chat = mongoose.model('Chat', chatSchema);
 
-// Create indexes for performance
+// Create indexes
 Doubt.syncIndexes();
 TestAttempt.syncIndexes();
 Notification.syncIndexes();
@@ -179,7 +179,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-const otpStore = new Map(); // email -> { otp, expires }
+const otpStore = new Map();
 
 app.post('/api/send-otp', async (req, res) => {
   const { email } = req.body;
@@ -194,12 +194,12 @@ app.post('/api/send-otp', async (req, res) => {
       html: `<div style="font-family:sans-serif; padding:20px; background:#0a0a0a; color:#f5f5f5;">
         <h2 style="color:#4fc3f7;">Sankalp Digital Pathshala</h2>
         <p>Your OTP is: <strong style="font-size:24px; color:#4fc3f7;">${otp}</strong></p>
-        <p>Valid for 5 minutes. Do not share with anyone.</p>
+        <p>Valid for 5 minutes.</p>
       </div>`
     });
     res.json({ success: true, message: 'OTP sent to email.' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to send OTP. Check email configuration.' });
+    res.status(500).json({ error: 'Failed to send OTP.' });
   }
 });
 
@@ -236,7 +236,6 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    // Login notification (non‑blocking)
     transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
@@ -264,10 +263,9 @@ app.post('/api/forgot-password', async (req, res) => {
   user.password = await bcrypt.hash(newPassword, 12);
   await user.save();
   otpStore.delete(email);
-  res.json({ success: true, message: 'Password updated successfully.' });
+  res.json({ success: true, message: 'Password updated.' });
 });
 
-// Get current user
 app.get('/api/me', auth, async (req, res) => {
   res.json({
     id: req.user._id,
@@ -280,16 +278,13 @@ app.get('/api/me', auth, async (req, res) => {
 
 // --------------------- Course & Lecture Routes ---------------------
 app.get('/api/courses', async (req, res) => {
-  const courses = await Course.find({}, { 'chapters.lectures': 0 }); // exclude nested lectures for list
+  const courses = await Course.find({}, { 'chapters.lectures': 0 });
   res.json(courses);
 });
 
 app.get('/api/courses/:id', async (req, res) => {
   try {
-    const course = await Course.findById(req.params.id).populate({
-      path: 'chapters.lectures',
-      model: 'Lecture'
-    });
+    const course = await Course.findById(req.params.id).populate('chapters.lectures');
     if (!course) return res.status(404).json({ error: 'Course not found.' });
     res.json(course);
   } catch (err) {
@@ -303,7 +298,6 @@ app.get('/api/lectures/:id', async (req, res) => {
   res.json(lecture);
 });
 
-// Enrollment – typically triggered after purchase
 app.post('/api/enroll', auth, async (req, res) => {
   try {
     const { courseId } = req.body;
@@ -380,10 +374,7 @@ app.post('/api/doubts/:id/reply', auth, async (req, res) => {
 app.get('/api/tests', auth, async (req, res) => {
   const now = new Date();
   const tests = await Test.find({
-    $or: [
-      { isLive: true },
-      { schedule: { $lte: now } }
-    ]
+    $or: [{ isLive: true }, { schedule: { $lte: now } }]
   }).select('title duration isLive schedule negativeMarking');
   res.json(tests);
 });
@@ -391,7 +382,6 @@ app.get('/api/tests', auth, async (req, res) => {
 app.get('/api/tests/:id', auth, async (req, res) => {
   const test = await Test.findById(req.params.id).lean();
   if (!test) return res.status(404).json({ error: 'Test not found.' });
-  // For students, hide correct answers
   if (!req.user.isAdmin) {
     test.questions = test.questions.map(q => {
       const { correctAnswer, numericalAnswer, ...rest } = q;
@@ -471,7 +461,11 @@ app.post('/api/practice-test', auth, async (req, res) => {
 // --------------------- AI Chatbot (Sankalp Sathi) ---------------------
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const AI_MODELS = [
-  'gpt-oss-120b',
+  'google/gemini-2.5-flash-lite',
+  'google/gemini-2.5-flash',
+  'meta-llama/llama-3.3-70b-instruct',
+  'mistralai/mistral-small-3.1-24b',
+  'deepseek/deepseek-r1'
 ];
 
 async function askOpenRouter(promptText, useSystemPrompt = true) {
@@ -528,10 +522,8 @@ app.post('/api/ai-chat', auth, async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required.' });
 
-  // Save user message
   await Chat.create({ user: req.user._id, role: 'user', content: message });
 
-  // Send response as stream
   res.writeHead(200, {
     'Content-Type': 'text/plain; charset=utf-8',
     'Transfer-Encoding': 'chunked',
@@ -671,7 +663,7 @@ app.post('/api/admin/courses/:id/chapters', adminAuth, async (req, res) => {
   }
 });
 
-// Add lecture to a chapter
+// Add lecture to chapter
 app.post('/api/admin/courses/:courseId/chapters/:chapterIndex/lectures', adminAuth, async (req, res) => {
   try {
     const course = await Course.findById(req.params.courseId);
@@ -801,7 +793,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// --------------------- Error Handler ---------------------
+// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong.' });
