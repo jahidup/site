@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Admin Panel – Sankalp</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body data-page="admin">
+  <!-- Topbar -->
+  <div class="topbar" id="adminTopbar">
+    <button class="menu-toggle md:hidden btn-icon">☰</button>
+    <h2 class="text-xl font-semibold">Admin Panel</h2>
+    <button class="btn-outline" onclick="logout()">Logout</button>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="adminSidebar">
+    <div class="nav-item active" data-section="dashboard">
+      <span>📊</span> Dashboard
+    </div>
+    <div class="nav-item" data-section="courses">
+      <span>📚</span> Manage Courses
+    </div>
+    <div class="nav-item" data-section="tests">
+      <span>📝</span> Manage Tests
+    </div>
+    <div class="nav-item" data-section="students">
+      <span>👥</span> Students
+    </div>
+    <div class="nav-item" data-section="doubts">
+      <span>❓</span> Doubts
+    </div>
+    <div class="nav-item" data-section="broadcast">
+      <span>📢</span> Broadcast
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="dashboard-main" id="adminContent">
+    <!-- dynamically loaded -->
+  </main>
+
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>
