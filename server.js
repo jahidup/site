@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ✅ Trust proxy – required for Vercel
+// ✅ Trust proxy – required for Vercel (rate‑limit fix)
 app.set('trust proxy', 1);
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -27,12 +27,9 @@ const apiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // --------------------- Models ---------------------
 const userSchema = new mongoose.Schema({
@@ -83,20 +80,22 @@ const doubtSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// ✅ testSchema – updated with marksPerQuestion & numerical fields
 const testSchema = new mongoose.Schema({
   title: { type: String, required: true },
   course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
   duration: { type: Number, required: true },
   schedule: Date,
   isLive: { type: Boolean, default: false },
-  negativeMarking: { type: Number, default: 0 },
+  marksPerQuestion: { type: Number, default: 4 },
+  negativeMarking: { type: Number, default: 1 },
   questions: [{
     questionText: { type: String, required: true },
     image: String,
     options: [String],
-    correctAnswer: Number,
+    correctAnswer: Number,           // for MCQ
     isNumerical: { type: Boolean, default: false },
-    numericalAnswer: Number,
+    numericalAnswer: Number,        // for numerical
     explanation: String
   }]
 });
@@ -142,12 +141,6 @@ const Message = mongoose.model('Message', messageSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
 const Chat = mongoose.model('Chat', chatSchema);
 
-// Create indexes
-Doubt.syncIndexes();
-TestAttempt.syncIndexes();
-Notification.syncIndexes();
-Chat.syncIndexes();
-
 // --------------------- Middleware ---------------------
 const auth = async (req, res, next) => {
   try {
@@ -173,13 +166,10 @@ const adminAuth = async (req, res, next) => {
 // --------------------- Email & OTP ---------------------
 const transporter = nodemailer.createTransport({
   service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
 });
 
-const otpStore = new Map();
+const otpStore = new Map(); // email -> { otp, expires }
 
 app.post('/api/send-otp', async (req, res) => {
   const { email } = req.body;
@@ -217,10 +207,7 @@ app.post('/api/register', async (req, res) => {
     await user.save();
     otpStore.delete(email);
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({
-      token,
-      user: { id: user._id, name, email, isAdmin: user.isAdmin }
-    });
+    res.status(201).json({ token, user: { id: user._id, name, email, isAdmin: user.isAdmin } });
   } catch (error) {
     if (error.code === 11000) return res.status(400).json({ error: 'Email already registered.' });
     res.status(500).json({ error: 'Registration failed.' });
@@ -242,10 +229,7 @@ app.post('/api/login', async (req, res) => {
       subject: 'New Login – Sankalp Digital Pathshala',
       html: `<p>A new login was detected on your account.</p>`
     }).catch(console.warn);
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email, isAdmin: user.isAdmin }
-    });
+    res.json({ token, user: { id: user._id, name: user.name, email, isAdmin: user.isAdmin } });
   } catch (error) {
     res.status(500).json({ error: 'Login failed.' });
   }
@@ -284,6 +268,7 @@ app.get('/api/courses', async (req, res) => {
 
 app.get('/api/courses/:id', async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid course ID.' });
     const course = await Course.findById(req.params.id).populate('chapters.lectures');
     if (!course) return res.status(404).json({ error: 'Course not found.' });
     res.json(course);
@@ -301,11 +286,10 @@ app.get('/api/lectures/:id', async (req, res) => {
 app.post('/api/enroll', auth, async (req, res) => {
   try {
     const { courseId } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(courseId)) return res.status(400).json({ error: 'Invalid course ID.' });
     const course = await Course.findById(courseId);
     if (!course) return res.status(404).json({ error: 'Course not found.' });
-    if (req.user.enrolledCourses.includes(courseId)) {
-      return res.status(400).json({ error: 'Already enrolled.' });
-    }
+    if (req.user.enrolledCourses.includes(courseId)) return res.status(400).json({ error: 'Already enrolled.' });
     req.user.enrolledCourses.push(courseId);
     await req.user.save();
     course.enrolledCount = (course.enrolledCount || 0) + 1;
@@ -326,15 +310,20 @@ app.post('/api/complete-lecture', auth, async (req, res) => {
 });
 
 app.get('/api/enrolled-courses', auth, async (req, res) => {
-  await req.user.populate('enrolledCourses');
-  const coursesWithProgress = await Promise.all(req.user.enrolledCourses.map(async (course) => {
-    const allLectures = await Lecture.find({ course: course._id }, '_id');
-    const lectureIds = allLectures.map(l => l._id.toString());
-    const completed = req.user.completedLectures.filter(cl => lectureIds.includes(cl.toString()));
-    const progress = lectureIds.length ? Math.round((completed.length / lectureIds.length) * 100) : 0;
-    return { ...course.toObject(), progress };
-  }));
-  res.json(coursesWithProgress);
+  try {
+    await req.user.populate('enrolledCourses');
+    const coursesWithProgress = [];
+    for (const course of req.user.enrolledCourses) {
+      const allLectures = await Lecture.find({ course: course._id }, '_id');
+      const lectureIds = allLectures.map(l => l._id.toString());
+      const completed = req.user.completedLectures.filter(cl => lectureIds.includes(cl.toString()));
+      const progress = lectureIds.length ? Math.round((completed.length / lectureIds.length) * 100) : 0;
+      coursesWithProgress.push({ ...course.toObject(), progress });
+    }
+    res.json(coursesWithProgress);
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load enrolled courses.' });
+  }
 });
 
 // --------------------- Doubts ---------------------
@@ -375,13 +364,14 @@ app.get('/api/tests', auth, async (req, res) => {
   const now = new Date();
   const tests = await Test.find({
     $or: [{ isLive: true }, { schedule: { $lte: now } }]
-  }).select('title duration isLive schedule negativeMarking');
+  }).select('title duration isLive schedule negativeMarking marksPerQuestion');
   res.json(tests);
 });
 
 app.get('/api/tests/:id', auth, async (req, res) => {
   const test = await Test.findById(req.params.id).lean();
   if (!test) return res.status(404).json({ error: 'Test not found.' });
+  // Hide correct answers from non‑admins
   if (!req.user.isAdmin) {
     test.questions = test.questions.map(q => {
       const { correctAnswer, numericalAnswer, ...rest } = q;
@@ -391,34 +381,40 @@ app.get('/api/tests/:id', auth, async (req, res) => {
   res.json(test);
 });
 
+// ✅ Submit test with marksPerQuestion & numerical
 app.post('/api/submit-test', auth, async (req, res) => {
   try {
     const { testId, answers, timeTaken } = req.body;
     const test = await Test.findById(testId);
     if (!test) return res.status(404).json({ error: 'Test not found.' });
+
     let score = 0;
+    const marks = test.marksPerQuestion || 4;
+    const penalty = test.negativeMarking || 0;
+
     test.questions.forEach((q, i) => {
       if (q.isNumerical) {
         if (Math.abs((answers[i] ?? 0) - q.numericalAnswer) < 0.001) {
-          score++;
-        } else if (test.negativeMarking) {
-          score -= test.negativeMarking;
+          score += marks;
+        } else {
+          score -= penalty;
         }
       } else {
         if (answers[i] === q.correctAnswer) {
-          score++;
-        } else if (test.negativeMarking) {
-          score -= test.negativeMarking;
+          score += marks;
+        } else {
+          score -= penalty;
         }
       }
     });
     score = Math.max(score, 0);
+
     const attempt = new TestAttempt({
       user: req.user._id,
       test: testId,
       answers,
       score,
-      total: test.questions.length,
+      total: test.questions.length * marks,
       submittedAt: new Date(),
       timeTaken
     });
@@ -439,15 +435,14 @@ app.get('/api/test-results/:testId', auth, async (req, res) => {
 app.post('/api/practice-test', auth, async (req, res) => {
   const { topic, difficulty } = req.body;
   if (!topic) return res.status(400).json({ error: 'Topic is required.' });
-  const prompt = `Generate exactly 10 JEE-Mains style multiple choice questions on "${topic}" with difficulty "${difficulty || 'medium'}". Each question must have 4 options (A, B, C, D), the correct answer index (0-3), and a brief explanation. Return a JSON array with objects: {"questionText": "...", "options": ["A","B","C","D"], "correctAnswer": 0, "explanation": "..."}. Do not include any text outside the JSON.`;
+  const prompt = `Generate exactly 10 JEE-Mains style multiple choice questions on "${topic}" with difficulty "${difficulty || 'medium'}". Each question must have 4 options (A, B, C, D), the correct answer index (0‑3), and a brief explanation. Return a JSON array: [{"questionText":"...","options":["A","B","C","D"],"correctAnswer":0,"explanation":"..."}]. Do not include any text outside the JSON.`;
   try {
     const aiResponse = await askOpenRouter(prompt, false);
     let questions;
     const jsonStart = aiResponse.indexOf('[');
     const jsonEnd = aiResponse.lastIndexOf(']');
     if (jsonStart !== -1 && jsonEnd !== -1) {
-      const jsonStr = aiResponse.substring(jsonStart, jsonEnd + 1);
-      questions = JSON.parse(jsonStr);
+      questions = JSON.parse(aiResponse.substring(jsonStart, jsonEnd + 1));
     } else {
       questions = JSON.parse(aiResponse);
     }
@@ -461,11 +456,9 @@ app.post('/api/practice-test', auth, async (req, res) => {
 // --------------------- AI Chatbot (Sankalp Sathi) ---------------------
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const AI_MODELS = [
-  'google/gemini-2.5-flash-lite',
-  'google/gemini-2.5-flash',
-  'meta-llama/llama-3.3-70b-instruct',
-  'mistralai/mistral-small-3.1-24b',
-  'deepseek/deepseek-r1'
+  "openai/gpt-oss-120b:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "google/gemini-flash-1.5-8b:free"
 ];
 
 async function askOpenRouter(promptText, useSystemPrompt = true) {
@@ -475,8 +468,8 @@ About Sankalp Shiksha Foundation:
 - Mission: Empowering underprivileged students through free digital education.
 - Founders: Abhishek Kumar and Vikas Kumar.
 - Journey: Started 2020 with 10 students, now 5000+ students across Bihar.
-- Rojgaar Buddy program: Skill training and job placement support for youth.
-- Milestones: 2021 – 50 students, 2022 – online app launch, 2023 – 2000+ students, 2024 – partnership with NexGenAiTech.
+- Rojgaar Buddy program: Skill training and job placement.
+- Milestones: 2021 – 50 students, 2022 – online app, 2023 – 2000+ students, 2024 – partnership with NexGenAiTech.
 - Vision: Free quality education for every child in India.
 - Contact: help@sankalpfoundation.org, +91-1234567890.
 
@@ -486,10 +479,9 @@ About NexGenAiTech:
 - Website: nexgenaitech.com
 - Phone: +91-9876543210.
 
-You are friendly, encouraging, and knowledgeable. Keep responses concise and helpful.`;
+Be friendly and helpful.`;
 
-  const messages = [];
-  if (useSystemPrompt) messages.push({ role: 'system', content: systemPrompt });
+  const messages = useSystemPrompt ? [{ role: 'system', content: systemPrompt }] : [];
   messages.push({ role: 'user', content: promptText });
 
   for (const model of AI_MODELS) {
@@ -502,12 +494,7 @@ You are friendly, encouraging, and knowledgeable. Keep responses concise and hel
           'HTTP-Referer': 'https://sankalp-pathshala.vercel.app',
           'X-Title': 'Sankalp Digital Pathshala'
         },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.7,
-          max_tokens: 800
-        })
+        body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 800 })
       });
       const data = await response.json();
       return data.choices[0].message.content.trim();
@@ -602,6 +589,7 @@ app.put('/api/notifications/:id/read', auth, async (req, res) => {
 });
 
 // --------------------- Admin Routes ---------------------
+// ✅ Fixed stats – returns numbers, not null/undefined
 app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     const [users, courses, doubts, tests, testAttempts] = await Promise.all([
@@ -611,13 +599,19 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
       Test.countDocuments(),
       TestAttempt.countDocuments()
     ]);
-    res.json({ users, courses, doubts, tests, testAttempts });
+    res.json({
+      users: users || 0,
+      courses: courses || 0,
+      doubts: doubts || 0,
+      tests: tests || 0,
+      testAttempts: testAttempts || 0
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to load stats.' });
   }
 });
 
-// Course CRUD
+// CRUD Courses
 app.post('/api/admin/courses', adminAuth, async (req, res) => {
   try {
     const course = new Course(req.body);
@@ -680,7 +674,7 @@ app.post('/api/admin/courses/:courseId/chapters/:chapterIndex/lectures', adminAu
   }
 });
 
-// Test management
+// Test CRUD (accepts all new fields)
 app.post('/api/admin/tests', adminAuth, async (req, res) => {
   try {
     const test = new Test(req.body);
