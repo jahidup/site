@@ -1,6 +1,6 @@
 /*****************************************************
- *  Sankalp Digital Pathshala – complete app.js
- *  Final version with all fixes
+ *  Sankalp Digital Pathshala – FINAL app.js
+ *  Complete, production‑ready, every feature included
  *****************************************************/
 const API = '/api';
 let token = localStorage.getItem('sp_token');
@@ -18,7 +18,6 @@ function showToast(msg, type = 'success') {
 }
 function formatDate(d) { return new Date(d).toLocaleString('en-IN'); }
 
-// Auth helpers
 function setToken(t) { token = t; localStorage.setItem('sp_token', t); }
 function logout() {
   localStorage.removeItem('sp_token');
@@ -30,7 +29,6 @@ async function fetchAuth(url, options = {}) {
   return fetch(url, { ...options, headers });
 }
 
-// ==================== AUTH CHECK ====================
 async function getUser() {
   if (!token) return null;
   try {
@@ -45,7 +43,6 @@ async function getUser() {
   } catch { return null; }
 }
 
-// ==================== PAGE DETECTION ====================
 const page = document.body.dataset.page || '';
 
 // ==================== AUTH PAGES ====================
@@ -54,18 +51,15 @@ if (page === 'login' || window.location.pathname.includes('login')) {
     e.preventDefault();
     const email = $('#loginEmail').value.trim();
     const password = $('#loginPassword').value;
-    try {
-      const res = await fetch(`${API}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      if (data.token) {
-        setToken(data.token);
-        window.location.href = data.user.isAdmin ? '/admin.html' : '/dashboard.html';
-      } else showToast(data.error, 'error');
-    } catch { showToast('Login failed', 'error'); }
+    const res = await fetch(`${API}/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (data.token) {
+      setToken(data.token);
+      window.location.href = data.user.isAdmin ? '/admin.html' : '/dashboard.html';
+    } else showToast(data.error, 'error');
   });
 }
 
@@ -74,8 +68,7 @@ if (page === 'register' || window.location.pathname.includes('register')) {
     const email = $('#regEmail').value.trim();
     if (!email) return showToast('Enter email', 'error');
     const res = await fetch(`${API}/send-otp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
     const data = await res.json();
@@ -88,15 +81,12 @@ if (page === 'register' || window.location.pathname.includes('register')) {
     const password = $('#regPassword').value;
     const otp = $('#regOtp').value.trim();
     const res = await fetch(`${API}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password, otp })
     });
     const data = await res.json();
-    if (data.token) {
-      setToken(data.token);
-      window.location.href = '/dashboard.html';
-    } else showToast(data.error, 'error');
+    if (data.token) { setToken(data.token); window.location.href = '/dashboard.html'; }
+    else showToast(data.error, 'error');
   });
 }
 
@@ -114,8 +104,7 @@ if (page === 'forgot') {
     const otp = $('#forgotOtp').value.trim();
     const newPassword = $('#newPassword').value;
     const res = await fetch(`${API}/forgot-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, otp, newPassword })
     });
     const data = await res.json();
@@ -152,90 +141,85 @@ if (page === 'home' || window.location.pathname === '/' || window.location.pathn
   loadFeaturedCourses();
 }
 
-async function loadAllCourses() {
+// All courses page (with filters)
+if (page === 'courses') {
   const container = $('#allCourses');
-  if (!container) return;
-  try {
-    const res = await fetch(`${API}/courses`);
-    let courses = await res.json();
-    const filterBtns = $$('.filter-btn');
-    const searchInput = $('#courseSearch');
-    let activeCategory = 'all';
-    filterBtns.forEach(btn => btn.addEventListener('click', () => {
-      filterBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeCategory = btn.dataset.category;
+  const searchInput = $('#courseSearch');
+  const filterBtns = $$('.filter-btn');
+  let activeCategory = 'all';
+  let coursesData = [];
+
+  async function loadCourses() {
+    try {
+      const res = await fetch(`${API}/courses`);
+      coursesData = await res.json();
       renderFiltered();
-    }));
-    function renderFiltered() {
-      const searchTerm = searchInput?.value.toLowerCase() || '';
-      const filtered = courses.filter(c => 
-        (activeCategory === 'all' || c.category === activeCategory) &&
-        c.title.toLowerCase().includes(searchTerm)
-      );
-      container.innerHTML = filtered.length ? filtered.map(c => `
-        <div class="card course-card">
-          <img src="${c.thumbnail || '/assets/images/default-course.jpg'}" alt="${c.title}" class="card-img" onerror="this.src='/assets/images/default-course.jpg'" />
-          <div class="card-body">
-            <h3>${c.title}</h3>
-            <p class="text-secondary text-sm">${c.description?.substring(0, 80)}...</p>
-            <div class="flex items-baseline gap-2 mt-2">
-              <span class="price-original">₹${c.originalPrice}</span>
-              <span class="price-discounted">₹${c.price}</span>
-            </div>
-            <a href="/course-detail.html?id=${c._id}" class="btn-outline w-full mt-3 text-center">Details</a>
-          </div>
-        </div>
-      `).join('') : '<p class="text-secondary">No courses found.</p>';
+    } catch {
+      container.innerHTML = '<p>Unable to load courses.</p>';
     }
-    renderFiltered();
-    searchInput?.addEventListener('input', renderFiltered);
-  } catch { container.innerHTML = '<p>Unable to load courses.</p>'; }
-}
+  }
 
-if (page === 'courses') loadAllCourses();
-
-async function loadCourseDetail() {
-  const detailContainer = $('#courseDetail');
-  if (!detailContainer) return;
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get('id');
-  if (!id) return detailContainer.innerHTML = '<p>Course not found.</p>';
-  try {
-    const res = await fetch(`${API}/courses/${id}`);
-    const course = await res.json();
-    detailContainer.innerHTML = `
-      <div class="glass p-6 rounded-lg">
-        <h1 class="text-3xl font-bold text-accent">${course.title}</h1>
-        <p class="text-secondary mt-2">${course.description}</p>
-        <div class="flex items-baseline gap-2 mt-4">
-          <span class="price-original text-xl">₹${course.originalPrice}</span>
-          <span class="price-discounted text-2xl">₹${course.price}</span>
-        </div>
-        <a href="https://wa.me/919876543210?text=I%20want%20to%20purchase%20${encodeURIComponent(course.title)}" class="btn-primary mt-4 inline-block">Buy Now (WhatsApp)</a>
-        <div class="mt-6">
-          <h3 class="text-xl font-semibold mb-2">Chapters</h3>
-          ${course.chapters.map((ch, i) => `
-            <div class="mb-3">
-              <h4 class="font-medium">Chapter ${i+1}: ${ch.title}</h4>
-              <ul class="ml-4 text-sm text-secondary">
-                ${ch.lectures.map(l => `<li>• ${(l.title || l)}</li>`).join('')}
-              </ul>
-            </div>
-          `).join('')}
+  function renderFiltered() {
+    const searchTerm = searchInput?.value.toLowerCase() || '';
+    const filtered = coursesData.filter(c =>
+      (activeCategory === 'all' || c.category === activeCategory) &&
+      c.title.toLowerCase().includes(searchTerm)
+    );
+    container.innerHTML = filtered.length ? filtered.map(c => `
+      <div class="card course-card">
+        <img src="${c.thumbnail || '/assets/images/default-course.jpg'}" alt="${c.title}" class="card-img" onerror="this.src='/assets/images/default-course.jpg'" />
+        <div class="card-body">
+          <h3>${c.title}</h3>
+          <p class="text-secondary text-sm">${c.description?.substring(0, 80)}...</p>
+          <div class="flex items-baseline gap-2 mt-2">
+            <span class="price-original">₹${c.originalPrice}</span>
+            <span class="price-discounted">₹${c.price}</span>
+          </div>
+          <a href="/course-detail.html?id=${c._id}" class="btn-outline w-full mt-3 text-center">Details</a>
         </div>
       </div>
-    `;
-  } catch { detailContainer.innerHTML = '<p>Failed to load course details.</p>'; }
+    `).join('') : '<p class="text-secondary">No courses found.</p>';
+  }
+
+  filterBtns.forEach(btn => btn.addEventListener('click', () => {
+    filterBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeCategory = btn.dataset.category;
+    renderFiltered();
+  }));
+  searchInput?.addEventListener('input', renderFiltered);
+  loadCourses();
 }
-if (page === 'course-detail') loadCourseDetail();
+
+// Course detail page
+if (page === 'course-detail') {
+  (async () => {
+    const id = new URLSearchParams(window.location.search).get('id');
+    const container = $('#courseDetail');
+    if (!id) return container.innerHTML = '<p>Invalid course.</p>';
+    try {
+      const res = await fetch(`${API}/courses/${id}`);
+      if (!res.ok) throw new Error();
+      const course = await res.json();
+      container.innerHTML = `
+        <div class="glass p-6 rounded-lg">
+          <h1 class="text-3xl font-bold text-accent">${course.title}</h1>
+          <p class="text-secondary mt-2">${course.description}</p>
+          <div class="flex items-baseline gap-2 mt-4">
+            <span class="price-original text-xl">₹${course.originalPrice}</span>
+            <span class="price-discounted text-2xl">₹${course.price}</span>
+          </div>
+          <a href="https://wa.me/919876543210?text=Hi%20I%20want%20to%20buy%20${encodeURIComponent(course.title)}" class="btn-primary mt-4 inline-block">Buy on WhatsApp</a>
+          <div class="mt-6">${course.chapters.map((ch,i) => `<div class="mb-3"><h4>${ch.title}</h4><ul class="ml-4 text-sm text-secondary">${ch.lectures.map(l => `<li>${l.title||l}</li>`).join('')}</ul></div>`).join('')}</div>
+        </div>
+      `;
+    } catch { container.innerHTML = '<p class="text-danger">Failed to load course details. Please check the ID.</p>'; }
+  })();
+}
 
 // ==================== DASHBOARD ====================
 if (page === 'dashboard') {
-  const sidebar = $('#sidebar');
-  const topbar = $('.topbar');
-  const content = $('#dashboardContent');
-  let currentSection = 'my-courses';
+  const sidebar = $('#sidebar'), topbar = $('.topbar'), content = $('#dashboardContent');
 
   // Navigation
   $$('#sidebar .nav-item').forEach(item => {
@@ -245,10 +229,8 @@ if (page === 'dashboard') {
     });
   });
 
-  // Mobile toggle
   $('.menu-toggle')?.addEventListener('click', () => sidebar.classList.toggle('mobile-open'));
 
-  // Auto-hide sidebar/topbar on scroll
   let lastScroll = 0;
   window.addEventListener('scroll', () => {
     const y = window.scrollY;
@@ -263,94 +245,96 @@ if (page === 'dashboard') {
   });
 
   async function loadSection(section) {
-    currentSection = section;
     $$('#sidebar .nav-item').forEach(i => i.classList.remove('active'));
     document.querySelector(`#sidebar .nav-item[data-section="${section}"]`)?.classList.add('active');
     content.innerHTML = '<div class="text-center py-10">Loading...</div>';
     switch (section) {
-      case 'my-courses': return await myCourses();
-      case 'performance': return await performance();
-      case 'ask-doubt': return await askDoubt();
-      case 'my-doubts': return await myDoubtList();
-      case 'ai-chat': return await aiChat();
-      case 'tests': return await testsList();
-      case 'practice': return await practiceTest();
-      case 'messages': return await messages();
-      case 'community': return await community();
-      case 'notifications': return await notifications();
+      case 'my-courses': return myCourses();
+      case 'performance': return performance();
+      case 'ask-doubt': return askDoubt();
+      case 'my-doubts': return myDoubtList();
+      case 'ai-chat': return aiChat();
+      case 'tests': return testsList();
+      case 'practice': return practiceTest();
+      case 'messages': return messages();
+      case 'community': return community();
+      case 'notifications': return notifications();
     }
   }
 
-  // ---------- My Courses (with auto‑refresh) ----------
+  // ---------- My Courses ----------
   async function myCourses() {
-    // ✅ Force refresh of current user data so newly assigned courses appear immediately
+    // Refresh user data to show newly assigned courses
     await getUser();
-    const res = await fetchAuth(`${API}/enrolled-courses`);
-    if (!res.ok) return content.innerHTML = '<p>Error loading courses. <button onclick="myCourses()" class="btn-outline text-sm">Retry</button></p>';
-    const courses = await res.json();
-    if (!courses.length) return content.innerHTML = '<p>No enrolled courses yet. <a href="/courses.html" class="text-accent">Browse courses</a>.</p>';
-    content.innerHTML = courses.map(c => `
-      <div class="card mb-4 p-4">
-        <div class="flex justify-between items-center">
-          <h3 class="text-xl font-bold">${c.title}</h3>
-          <span class="text-accent">${c.progress}%</span>
+    try {
+      const res = await fetchAuth(`${API}/enrolled-courses`);
+      if (!res.ok) throw new Error();
+      const courses = await res.json();
+      if (!courses.length) {
+        content.innerHTML = `<p>No enrolled courses yet. <a href="/courses.html" class="text-accent">Browse courses</a>.</p>`;
+        return;
+      }
+      content.innerHTML = courses.map(c => `
+        <div class="card mb-4 p-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xl font-bold">${c.title}</h3>
+            <span class="text-accent">${c.progress}%</span>
+          </div>
+          <div class="progress-bar mt-2"><div style="width:${c.progress}%"></div></div>
+          <div class="lecture-toggle cursor-pointer mt-2" data-course="${c._id}">View Lectures ▼</div>
+          <div class="lecture-list hidden mt-2"></div>
         </div>
-        <div class="progress-bar mt-2">
-          <div style="width:${c.progress}%"></div>
-        </div>
-        <div class="mt-2 cursor-pointer lecture-toggle" data-course="${c._id}">View Lectures ▼</div>
-        <div class="lecture-list hidden mt-2"></div>
-      </div>
-    `).join('');
-    // Lecture expand
-    $$('.lecture-toggle').forEach(toggle => {
-      toggle.addEventListener('click', async function() {
-        const listDiv = this.nextElementSibling;
-        if (listDiv.classList.contains('hidden')) {
-          listDiv.classList.remove('hidden');
-          this.textContent = 'Hide Lectures ▲';
-          const courseId = this.dataset.course;
-          const res = await fetchAuth(`${API}/courses/${courseId}`);
-          const course = await res.json();
-          const allLectures = course.chapters.flatMap(ch => ch.lectures);
-          listDiv.innerHTML = allLectures.map(l => `
-            <div class="lecture-mobile-header glass mt-1" data-lecture="${l._id}">
-              <span>${l.title}</span>
-            </div>
-            <div class="lecture-mobile-body p-2">
-              <p><a href="${l.videoUrl}" target="_blank" class="btn-outline text-sm">Watch Video</a></p>
-              ${l.notes ? `<p class="text-sm mt-1">Notes: ${l.notes}</p>` : ''}
-              ${l.dppUrl ? `<a href="${l.dppUrl}" target="_blank" class="btn-outline text-sm mt-1">Download DPP</a>` : ''}
-              <button class="btn-primary text-sm mt-2 mark-complete" data-lecture="${l._id}" onclick="event.stopPropagation()">Mark Complete</button>
-            </div>
-          `).join('');
-          // Expandable mobile
-          $$('.lecture-mobile-header').forEach(header => {
-            header.addEventListener('click', () => {
-              const body = header.nextElementSibling;
-              body.classList.toggle('expanded');
-            });
-          });
-          // Mark complete
-          $$('.mark-complete').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-              e.stopPropagation();
-              const lectureId = btn.dataset.lecture;
-              await fetchAuth(`${API}/complete-lecture`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lectureId })
+      `).join('');
+
+      // Expand lectures and mark complete
+      $$('.lecture-toggle').forEach(toggle => {
+        toggle.addEventListener('click', async function() {
+          const listDiv = this.nextElementSibling;
+          if (listDiv.classList.contains('hidden')) {
+            listDiv.classList.remove('hidden');
+            this.textContent = 'Hide Lectures ▲';
+            const courseId = this.dataset.course;
+            const res = await fetchAuth(`${API}/courses/${courseId}`);
+            const course = await res.json();
+            const allLectures = course.chapters.flatMap(ch => ch.lectures);
+            listDiv.innerHTML = allLectures.map(l => `
+              <div class="lecture-mobile-header glass mt-1" data-lecture="${l._id}">
+                <span>${l.title}</span>
+              </div>
+              <div class="lecture-mobile-body p-2">
+                <p><a href="${l.videoUrl}" target="_blank" class="btn-outline text-sm">Watch Video</a></p>
+                ${l.notes ? `<p class="text-sm mt-1">Notes: ${l.notes}</p>` : ''}
+                ${l.dppUrl ? `<a href="${l.dppUrl}" target="_blank" class="btn-outline text-sm mt-1">Download DPP</a>` : ''}
+                <button class="btn-primary text-sm mt-2 mark-complete" data-lecture="${l._id}">Mark Complete</button>
+              </div>
+            `).join('');
+            // Mobile expandable behaviour
+            $$('.lecture-mobile-header').forEach(header => {
+              header.addEventListener('click', () => {
+                header.nextElementSibling.classList.toggle('expanded');
               });
-              showToast('Lecture marked complete');
-              myCourses(); // refresh progress
             });
-          });
-        } else {
-          listDiv.classList.add('hidden');
-          this.textContent = 'View Lectures ▼';
-        }
+            // Mark complete
+            $$('.mark-complete').forEach(btn => {
+              btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await fetchAuth(`${API}/complete-lecture`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ lectureId: btn.dataset.lecture })
+                });
+                showToast('Lecture marked complete');
+                myCourses(); // refresh progress
+              });
+            });
+          } else {
+            listDiv.classList.add('hidden');
+            this.textContent = 'View Lectures ▼';
+          }
+        });
       });
-    });
+    } catch {
+      content.innerHTML = '<p>Error loading courses. <button onclick="myCourses()" class="btn-outline text-sm">Retry</button></p>';
+    }
   }
 
   // ---------- Performance ----------
@@ -391,8 +375,7 @@ if (page === 'dashboard') {
       const question = $('#doubtQuestion').value.trim();
       if (!question) return showToast('Enter question', 'error');
       const res = await fetchAuth(`${API}/doubts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lectureId, question })
       });
       if (res.ok) {
@@ -448,7 +431,7 @@ if (page === 'dashboard') {
       <div class="flex flex-col h-[70vh]">
         <div id="chatMessages" class="flex-1 overflow-y-auto glass p-4 mb-4"></div>
         <div class="flex gap-2">
-          <input id="chatInput" placeholder="Ask me anything about Sankalp..." class="flex-1" />
+          <input id="chatInput" placeholder="Ask me anything..." class="flex-1" />
           <button id="sendChat" class="btn-primary">Send</button>
         </div>
       </div>
@@ -461,7 +444,7 @@ if (page === 'dashboard') {
     const history = await histRes.json();
     history.forEach(c => appendMessage(c.role, c.content));
 
-    async function appendMessage(role, content) {
+    function appendMessage(role, content) {
       const div = document.createElement('div');
       div.className = `mb-2 ${role === 'ai' ? 'text-accent' : ''}`;
       div.textContent = `${role === 'ai' ? 'Sathi' : 'You'}: ${content}`;
@@ -480,8 +463,7 @@ if (page === 'dashboard') {
       msgDiv.appendChild(loadingDiv);
       try {
         const res = await fetchAuth(`${API}/ai-chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: msg })
         });
         const reader = res.body.getReader();
@@ -501,7 +483,7 @@ if (page === 'dashboard') {
     input.addEventListener('keypress', e => { if (e.key === 'Enter') send.click(); });
   }
 
-  // ---------- Tests ----------
+  // ---------- Tests List ----------
   async function testsList() {
     const res = await fetchAuth(`${API}/tests`);
     const tests = await res.json();
@@ -515,17 +497,17 @@ if (page === 'dashboard') {
         </div>
       `;
     });
-    $$('.start-test').forEach(btn => {
-      btn.addEventListener('click', () => startTest(btn.dataset.id));
-    });
+    $$('.start-test').forEach(btn => btn.addEventListener('click', () => startTest(btn.dataset.id)));
   }
 
+  // ---------- Start Test ----------
   async function startTest(testId) {
     const res = await fetchAuth(`${API}/tests/${testId}`);
     const test = await res.json();
     let answers = Array(test.questions.length).fill(null);
     let startTime = Date.now();
     let timerInterval;
+    const markedForReview = new Set();
 
     content.innerHTML = `
       <div class="flex justify-between items-center mb-4">
@@ -537,7 +519,7 @@ if (page === 'dashboard') {
         <div id="questionPalette" class="w-full md:w-1/4 glass p-3">
           <h3 class="text-lg mb-2">Questions</h3>
           <div class="grid grid-cols-5 gap-1">
-            ${test.questions.map((_, i) => `<div class="palette-item w-8 h-8 flex items-center justify-center border cursor-pointer" data-q="${i}">${i+1}</div>`).join('')}
+            ${test.questions.map((_, i) => `<div class="palette-item" data-q="${i}">${i+1}</div>`).join('')}
           </div>
         </div>
         <div id="questionArea" class="flex-1 glass p-4"></div>
@@ -547,56 +529,47 @@ if (page === 'dashboard') {
 
     let currentQ = 0;
     const paletteItems = $$('.palette-item');
-    const questionDiv = $('#questionArea');
-    const markedForReview = new Set();
-
-    function renderQuestion(i) {
-      const q = test.questions[i];
-      questionDiv.innerHTML = `
-        <h3 class="mb-2">Q${i+1}. ${q.questionText}</h3>
-        ${q.image ? `<img src="${q.image}" class="max-w-full mb-2"/>` : ''}
-        ${q.isNumerical ? `
-          <input type="number" id="numericalAns" value="${answers[i] || ''}" placeholder="Enter answer" class="mt-2" />
-        ` : q.options.map((opt, idx) => `
-          <label class="block">
-            <input type="radio" name="q${i}" value="${idx}" ${answers[i] === idx ? 'checked' : ''}> ${opt}
-          </label>
-        `).join('')}
-        <button id="markReview" class="btn-outline mt-2 text-sm">${markedForReview.has(i) ? 'Unmark Review' : 'Mark for Review'}</button>
-      `;
-      if (q.isNumerical) {
-        $('#numericalAns')?.addEventListener('input', e => answers[i] = parseFloat(e.target.value));
-      } else {
-        $$(`input[name="q${i}"]`).forEach(radio => {
-          radio.addEventListener('change', () => answers[i] = parseInt(radio.value));
-        });
-      }
-      $('#markReview')?.addEventListener('click', () => {
-        if (markedForReview.has(i)) markedForReview.delete(i);
-        else markedForReview.add(i);
-        renderQuestion(i);
-        updatePalette();
-      });
-      updatePalette();
-    }
 
     function updatePalette() {
       paletteItems.forEach((item, idx) => {
-        item.className = 'palette-item w-8 h-8 flex items-center justify-center border cursor-pointer';
+        item.className = 'palette-item';
         if (idx === currentQ) item.classList.add('bg-accent', 'text-black');
         if (answers[idx] !== null) item.classList.add('answered');
         if (markedForReview.has(idx)) item.classList.add('border-yellow-400');
       });
     }
 
+    function renderQuestion(i) {
+      const q = test.questions[i];
+      $('#questionArea').innerHTML = `
+        <h3 class="mb-2">Q${i+1}. ${q.questionText}</h3>
+        ${q.image ? `<img src="${q.image}" class="max-w-full mb-2"/>` : ''}
+        ${q.isNumerical ? `
+          <input type="number" id="numericalAns" value="${answers[i] || ''}" placeholder="Enter numerical answer" class="mt-2" />
+        ` : q.options.map((opt, idx) => `
+          <label class="block"><input type="radio" name="q${i}" value="${idx}" ${answers[i] === idx ? 'checked' : ''}> ${opt}</label>
+        `).join('')}
+        <button id="markReview" class="btn-outline mt-2 text-sm">${markedForReview.has(i) ? 'Unmark Review' : 'Mark for Review'}</button>
+      `;
+      if (q.isNumerical) {
+        $('#numericalAns')?.addEventListener('input', e => answers[i] = parseFloat(e.target.value));
+      } else {
+        $$(`input[name="q${i}"]`).forEach(radio => radio.addEventListener('change', () => answers[i] = parseInt(radio.value)));
+      }
+      $('#markReview')?.addEventListener('click', () => {
+        markedForReview.has(i) ? markedForReview.delete(i) : markedForReview.add(i);
+        renderQuestion(i);
+        updatePalette();
+      });
+      updatePalette();
+    }
+
     renderQuestion(0);
 
-    paletteItems.forEach(item => {
-      item.addEventListener('click', () => {
-        currentQ = parseInt(item.dataset.q);
-        renderQuestion(currentQ);
-      });
-    });
+    paletteItems.forEach(item => item.addEventListener('click', () => {
+      currentQ = parseInt(item.dataset.q);
+      renderQuestion(currentQ);
+    }));
 
     // Timer
     let timeLeft = test.duration * 60;
@@ -604,10 +577,7 @@ if (page === 'dashboard') {
       const min = Math.floor(timeLeft / 60);
       const sec = timeLeft % 60;
       $('#timer').textContent = `${min}:${sec.toString().padStart(2, '0')}`;
-      if (timeLeft <= 0) {
-        clearInterval(timerInterval);
-        submitTest();
-      }
+      if (timeLeft <= 0) { clearInterval(timerInterval); submitTest(); }
       timeLeft--;
     }
     updateTimer();
@@ -618,15 +588,13 @@ if (page === 'dashboard') {
       if (document.hidden) showToast('⚠️ Do not switch tabs!', 'error');
     });
 
-    // Submit
     $('#submitTest')?.addEventListener('click', submitTest);
 
     async function submitTest() {
       clearInterval(timerInterval);
       const timeTaken = Math.round((Date.now() - startTime)/1000);
       const res = await fetchAuth(`${API}/submit-test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ testId, answers, timeTaken })
       });
       const result = await res.json();
@@ -634,8 +602,12 @@ if (page === 'dashboard') {
       const fullTest = await (await fetchAuth(`${API}/tests/${testId}`)).json();
       let explHtml = '<h3 class="text-lg mt-4">Explanations</h3>';
       fullTest.questions.forEach((q, i) => {
-        if (result.answers[i] !== q.correctAnswer && !q.isNumerical) {
-          explHtml += `<div class="glass p-2 mb-2"><strong>Q${i+1}:</strong> ${q.explanation}</div>`;
+        if (q.isNumerical) {
+          if (Math.abs((answers[i]??0) - q.numericalAnswer) >= 0.001) {
+            explHtml += `<div class="glass p-2 mb-2"><strong>Q${i+1}:</strong> Correct answer: ${q.numericalAnswer}</div>`;
+          }
+        } else if (answers[i] !== q.correctAnswer) {
+          explHtml += `<div class="glass p-2 mb-2"><strong>Q${i+1}:</strong> ${q.explanation || 'No explanation available'}</div>`;
         }
       });
       $('#explanationArea').innerHTML = explHtml;
@@ -648,9 +620,7 @@ if (page === 'dashboard') {
       <h2 class="text-xl font-bold mb-4">Generate Practice Test</h2>
       <input id="practiceTopic" placeholder="Topic (e.g., Kinematics)" class="mb-2" />
       <select id="practiceDifficulty" class="mb-2">
-        <option>easy</option>
-        <option selected>medium</option>
-        <option>hard</option>
+        <option>easy</option><option selected>medium</option><option>hard</option>
       </select>
       <button id="generatePractice" class="btn-primary mb-4">Generate</button>
       <div id="practiceArea"></div>
@@ -660,14 +630,12 @@ if (page === 'dashboard') {
       const difficulty = $('#practiceDifficulty').value;
       if (!topic) return showToast('Enter topic', 'error');
       const res = await fetchAuth(`${API}/practice-test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic, difficulty })
       });
       const data = await res.json();
-      if (data.questions) {
-        startPracticeTest(data.questions);
-      } else showToast(data.error, 'error');
+      if (data.questions) startPracticeTest(data.questions);
+      else showToast(data.error, 'error');
     });
   }
 
@@ -693,11 +661,12 @@ if (page === 'dashboard') {
       $$(`input[name="pq${i}"]`).forEach(radio => radio.addEventListener('change', e => answers[i] = parseInt(e.target.value)));
     }
     renderPracticeQuestion(0);
-    document.addEventListener('click', function pqNav(e) {
+    // Insert prev/next buttons
+    area.insertAdjacentHTML('beforeend', `<div class="flex justify-between mt-2"><button id="prevQ" class="btn-outline">Prev</button><button id="nextQ" class="btn-outline">Next</button></div>`);
+    document.addEventListener('click', function handler(e) {
       if (e.target.id === 'nextQ') { if (currentQ < questions.length-1) { currentQ++; renderPracticeQuestion(currentQ); } }
       if (e.target.id === 'prevQ') { if (currentQ > 0) { currentQ--; renderPracticeQuestion(currentQ); } }
     });
-    area.insertAdjacentHTML('beforeend', `<div class="flex justify-between mt-2"><button id="prevQ" class="btn-outline">Prev</button><button id="nextQ" class="btn-outline">Next</button></div>`);
     $('#submitPractice')?.addEventListener('click', () => {
       let score = 0;
       questions.forEach((q, i) => { if (answers[i] === q.correctAnswer) score++; });
@@ -748,8 +717,7 @@ if (page === 'dashboard') {
       const msg = $('#messageInput').value.trim();
       if (!msg || !activeUser) return;
       await fetchAuth(`${API}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receiver: activeUser, message: msg })
       });
       $('#messageInput').value = '';
@@ -779,8 +747,7 @@ if (page === 'dashboard') {
       const msg = $('#communityInput').value.trim();
       if (!msg) return;
       await fetchAuth(`${API}/community`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msg })
       });
       $('#communityInput').value = '';
@@ -818,9 +785,7 @@ if (page === 'dashboard') {
 
 // ==================== ADMIN PANEL ====================
 if (page === 'admin') {
-  const sidebar = $('#adminSidebar');
-  const content = $('#adminContent');
-  const topbar = $('#adminTopbar');
+  const sidebar = $('#adminSidebar'), content = $('#adminContent'), topbar = $('#adminTopbar');
 
   $$('#adminSidebar .nav-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -858,19 +823,24 @@ if (page === 'admin') {
     }
   }
 
+  // ✅ Dashboard – fixed numbers
   async function adminDashboard() {
-    const res = await fetchAuth(`${API}/admin/stats`);
-    const stats = await res.json();
-    content.innerHTML = `
-      <h2 class="text-2xl font-bold mb-4">Admin Dashboard</h2>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="stat-box"><h3>${stats.users}</h3><p>Students</p></div>
-        <div class="stat-box"><h3>${stats.courses}</h3><p>Courses</p></div>
-        <div class="stat-box"><h3>${stats.doubts}</h3><p>Doubts</p></div>
-        <div class="stat-box"><h3>${stats.tests}</h3><p>Tests</p></div>
-        <div class="stat-box"><h3>${stats.testAttempts}</h3><p>Attempts</p></div>
-      </div>
-    `;
+    try {
+      const res = await fetchAuth(`${API}/admin/stats`);
+      const stats = await res.json();
+      content.innerHTML = `
+        <h2 class="text-2xl font-bold mb-4">Admin Dashboard</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="stat-box"><h3>${stats.users ?? 0}</h3><p>Students</p></div>
+          <div class="stat-box"><h3>${stats.courses ?? 0}</h3><p>Courses</p></div>
+          <div class="stat-box"><h3>${stats.doubts ?? 0}</h3><p>Doubts</p></div>
+          <div class="stat-box"><h3>${stats.tests ?? 0}</h3><p>Tests</p></div>
+          <div class="stat-box"><h3>${stats.testAttempts ?? 0}</h3><p>Attempts</p></div>
+        </div>
+      `;
+    } catch {
+      content.innerHTML = '<p>Failed to load stats.</p>';
+    }
   }
 
   // ---------- Manage Courses ----------
@@ -897,7 +867,7 @@ if (page === 'admin') {
     `;
 
     $('#addCourseBtn')?.addEventListener('click', () => showCourseForm());
-    $$('.edit-course').forEach(btn => btn.addEventListener('click', async (e) => {
+    $$('.edit-course').forEach(btn => btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       const course = courses.find(c => c._id === id);
       showCourseForm(course);
@@ -931,32 +901,21 @@ if (page === 'admin') {
     `;
     $('#saveCourse')?.addEventListener('click', async () => {
       const data = {
-        title: $('#courseTitle').value,
-        description: $('#courseDesc').value,
-        price: Number($('#coursePrice').value),
-        originalPrice: Number($('#courseOriginalPrice').value),
-        thumbnail: $('#courseThumbnail').value,
-        teacher: $('#courseTeacher').value,
-        duration: $('#courseDuration').value,
-        category: $('#courseCategory').value,
+        title: $('#courseTitle').value, description: $('#courseDesc').value,
+        price: Number($('#coursePrice').value), originalPrice: Number($('#courseOriginalPrice').value),
+        thumbnail: $('#courseThumbnail').value, teacher: $('#courseTeacher').value,
+        duration: $('#courseDuration').value, category: $('#courseCategory').value
       };
-      let url = `${API}/admin/courses`;
-      let method = 'POST';
+      let url = `${API}/admin/courses`, method = 'POST';
       if (isEdit) { url += `/${existing._id}`; method = 'PUT'; }
       const res = await fetchAuth(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-      if (res.ok) {
-        showToast('Course saved');
-        container.classList.add('hidden');
-        adminCourses();
-      } else {
-        const err = await res.json();
-        showToast(err.error, 'error');
-      }
+      if (res.ok) { showToast('Course saved'); container.classList.add('hidden'); adminCourses(); }
+      else { const err = await res.json(); showToast(err.error, 'error'); }
     });
     $('#cancelCourse')?.addEventListener('click', () => container.classList.add('hidden'));
   }
 
-  // ---------- Manage Tests ----------
+  // ---------- Manage Tests (with marks & numerical) ----------
   async function adminTests() {
     const res = await fetchAuth(`${API}/tests`);
     const tests = await res.json();
@@ -978,7 +937,6 @@ if (page === 'admin') {
         `).join('')}
       </div>
     `;
-
     $('#addTestBtn')?.addEventListener('click', () => showTestForm());
     $$('.edit-test').forEach(btn => btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
@@ -1002,11 +960,19 @@ if (page === 'admin') {
     let questionsHtml = '';
     if (existing?.questions) {
       questionsHtml = existing.questions.map((q, i) => `
-        <div class="glass p-2 mb-1">
-          <input value="${q.questionText}" data-qidx="${i}" class="qtext mb-1" placeholder="Question text" />
-          <div class="qoptions">${q.options ? q.options.map((opt, oi) => `<input value="${opt}" data-qidx="${i}" data-oidx="${oi}" class="qopt mb-1" placeholder="Option ${oi+1}" />`).join('') : ''}</div>
-          <input value="${q.correctAnswer ?? ''}" data-qidx="${i}" class="qcorrect" placeholder="Correct answer index (0-3)" />
-          <input value="${q.explanation || ''}" data-qidx="${i}" class="qexpl" placeholder="Explanation" />
+        <div class="glass p-2 mb-2">
+          <input value="${q.questionText || ''}" data-qidx="${i}" class="qtext mb-1" placeholder="Question text" />
+          <div class="qoptions">${!q.isNumerical ? (q.options || ['','','','']).map((opt, oi) => `<input value="${opt}" data-qidx="${i}" data-oidx="${oi}" class="qopt mb-1" placeholder="Option ${oi+1}" />`).join('') : ''}</div>
+          <label class="flex items-center gap-2 mb-1">
+            <input type="checkbox" class="isNumerical" data-qidx="${i}" ${q.isNumerical ? 'checked' : ''} /> Numerical
+          </label>
+          <div class="correctAnswerInput" style="display:${q.isNumerical ? 'none' : 'block'}">
+            <input value="${q.correctAnswer ?? ''}" data-qidx="${i}" class="qcorrect mb-1" placeholder="Correct answer (0-3)" />
+          </div>
+          <div class="numericalAnswerInput" style="display:${q.isNumerical ? 'block' : 'none'}">
+            <input value="${q.numericalAnswer ?? ''}" data-qidx="${i}" class="qnumerical mb-1" placeholder="Correct numerical value" />
+          </div>
+          <input value="${q.explanation || ''}" data-qidx="${i}" class="qexpl mb-1" placeholder="Explanation" />
         </div>
       `).join('');
     }
@@ -1014,11 +980,12 @@ if (page === 'admin') {
       <h3>${isEdit ? 'Edit' : 'Add'} Test</h3>
       <input id="testTitle" placeholder="Title" value="${existing?.title || ''}" class="mb-2" />
       <select id="testCourse" class="mb-2">
-        <option value="">Select Course</option>
+        <option value="">Select Course (optional)</option>
         ${courses.map(c => `<option value="${c._id}" ${existing?.course === c._id ? 'selected' : ''}>${c.title}</option>`).join('')}
       </select>
       <input id="testDuration" type="number" placeholder="Duration (min)" value="${existing?.duration || ''}" class="mb-2" />
-      <input id="testNegativeMarking" type="number" step="0.25" placeholder="Negative marking" value="${existing?.negativeMarking || 0}" class="mb-2" />
+      <input id="testMarks" type="number" placeholder="Marks per question" value="${existing?.marksPerQuestion || 4}" class="mb-2" />
+      <input id="testNegativeMarking" type="number" step="0.25" placeholder="Negative marking" value="${existing?.negativeMarking || 1}" class="mb-2" />
       <label class="block mb-2"><input type="checkbox" id="testLive" ${existing?.isLive ? 'checked' : ''}> Live</label>
       <div id="questionsContainer">${questionsHtml}</div>
       <button id="addQuestionBtn" class="btn-outline mb-2">Add Question</button>
@@ -1028,50 +995,82 @@ if (page === 'admin') {
       </div>
     `;
 
+    // Toggle numerical for existing questions
+    $$('.isNumerical').forEach(cb => {
+      cb.addEventListener('change', function() {
+        const parent = this.closest('.glass');
+        parent.querySelector('.correctAnswerInput').style.display = this.checked ? 'none' : 'block';
+        parent.querySelector('.numericalAnswerInput').style.display = this.checked ? 'block' : 'none';
+      });
+    });
+
+    // Add new question
     $('#addQuestionBtn')?.addEventListener('click', () => {
       const qDiv = document.createElement('div');
-      qDiv.className = 'glass p-2 mb-1';
+      qDiv.className = 'glass p-2 mb-2';
+      const idx = Date.now();
       qDiv.innerHTML = `
         <input class="qtext mb-1" placeholder="Question text" />
-        <input class="qopt mb-1" placeholder="Option A" />
-        <input class="qopt mb-1" placeholder="Option B" />
-        <input class="qopt mb-1" placeholder="Option C" />
-        <input class="qopt mb-1" placeholder="Option D" />
-        <input class="qcorrect mb-1" placeholder="Correct answer (0-3)" />
+        <div class="qoptions">
+          <input class="qopt mb-1" placeholder="Option A" />
+          <input class="qopt mb-1" placeholder="Option B" />
+          <input class="qopt mb-1" placeholder="Option C" />
+          <input class="qopt mb-1" placeholder="Option D" />
+        </div>
+        <label class="flex items-center gap-2 mb-1">
+          <input type="checkbox" class="isNumerical" /> Numerical
+        </label>
+        <div class="correctAnswerInput">
+          <input class="qcorrect mb-1" placeholder="Correct answer (0-3)" />
+        </div>
+        <div class="numericalAnswerInput" style="display:none">
+          <input class="qnumerical mb-1" placeholder="Correct numerical value" />
+        </div>
         <input class="qexpl mb-1" placeholder="Explanation" />
       `;
+      qDiv.querySelector('.isNumerical').addEventListener('change', function() {
+        qDiv.querySelector('.correctAnswerInput').style.display = this.checked ? 'none' : 'block';
+        qDiv.querySelector('.numericalAnswerInput').style.display = this.checked ? 'block' : 'none';
+      });
       $('#questionsContainer').appendChild(qDiv);
     });
 
+    // Save test
     $('#saveTest')?.addEventListener('click', async () => {
-      const questions = [...$$('#questionsContainer .glass')].map(qDiv => {
+      const questionDivs = [...$$('#questionsContainer .glass')];
+      const questions = questionDivs.map(qDiv => {
         const qtext = qDiv.querySelector('.qtext')?.value;
-        const opts = [...qDiv.querySelectorAll('.qopt')].map(i => i.value).filter(Boolean);
+        const isNumerical = qDiv.querySelector('.isNumerical')?.checked || false;
+        let options = [];
+        if (!isNumerical) options = [...qDiv.querySelectorAll('.qopt')].map(i => i.value).filter(Boolean);
         const correct = parseInt(qDiv.querySelector('.qcorrect')?.value);
-        const expl = qDiv.querySelector('.qexpl')?.value;
-        return { questionText: qtext, options: opts, correctAnswer: isNaN(correct) ? null : correct, isNumerical: opts.length === 0, numericalAnswer: null, explanation: expl };
+        const numerical = parseFloat(qDiv.querySelector('.qnumerical')?.value);
+        return {
+          questionText: qtext,
+          options,
+          correctAnswer: isNumerical ? undefined : (isNaN(correct) ? undefined : correct),
+          isNumerical,
+          numericalAnswer: isNumerical ? (isNaN(numerical) ? undefined : numerical) : undefined,
+          explanation: qDiv.querySelector('.qexpl')?.value
+        };
       }).filter(q => q.questionText);
+
       const data = {
         title: $('#testTitle').value,
         course: $('#testCourse').value || null,
         duration: Number($('#testDuration').value),
-        negativeMarking: Number($('#testNegativeMarking').value),
+        marksPerQuestion: Number($('#testMarks').value) || 4,
+        negativeMarking: Number($('#testNegativeMarking').value) || 1,
         isLive: $('#testLive').checked,
         questions
       };
-      let url = `${API}/admin/tests`;
-      let method = 'POST';
+      let url = `${API}/admin/tests`, method = 'POST';
       if (isEdit) { url += `/${existing._id}`; method = 'PUT'; }
       const res = await fetchAuth(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-      if (res.ok) {
-        showToast('Test saved');
-        container.classList.add('hidden');
-        adminTests();
-      } else {
-        const err = await res.json();
-        showToast(err.error, 'error');
-      }
+      if (res.ok) { showToast('Test saved'); container.classList.add('hidden'); adminTests(); }
+      else { const err = await res.json(); showToast(err.error, 'error'); }
     });
+
     $('#cancelTest')?.addEventListener('click', () => container.classList.add('hidden'));
   }
 
@@ -1096,12 +1095,11 @@ if (page === 'admin') {
         const coursesRes = await fetchAuth(`${API}/courses`);
         const courses = await coursesRes.json();
         const courseOptions = courses.map(c => `<option value="${c._id}">${c.title}</option>`).join('');
-        const courseSelect = prompt('Select course ID:\n' + courses.map(c => `${c._id} - ${c.title}`).join('\n'));
+        const courseSelect = prompt('Enter Course ID:\n' + courses.map(c => `${c._id} - ${c.title}`).join('\n'));
         if (courseSelect) {
           if (confirm(`Assign course ${courseSelect} to this student?`)) {
             await fetchAuth(`${API}/admin/assign-course`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ userId, courseId: courseSelect })
             });
             showToast('Course assigned');
@@ -1134,8 +1132,7 @@ if (page === 'admin') {
         const reply = prompt('Enter reply:');
         if (reply) {
           await fetchAuth(`${API}/admin/doubts/${doubtId}/reply`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reply })
           });
           showToast('Reply posted');
@@ -1156,8 +1153,7 @@ if (page === 'admin') {
       const message = $('#broadcastMsg').value.trim();
       if (!message) return showToast('Enter a message', 'error');
       const res = await fetchAuth(`${API}/admin/notify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message })
       });
       const data = await res.json();
@@ -1171,13 +1167,16 @@ if (page === 'admin') {
   getUser();
 }
 
-// ---------- Toast styles ----------
+// Toast styles
 const style = document.createElement('style');
 style.textContent = `
 .toast { position:fixed; bottom:20px; right:20px; padding:12px 24px; border-radius:4px; z-index:9999; color:white; font-weight:500; box-shadow:0 4px 12px rgba(0,0,0,0.3); animation: fadeUp 0.3s ease; }
 .toast-success { background:#2ecc71; }
 .toast-error { background:#ff4d6d; }
+.palette-item { width:32px; height:32px; display:flex; align-items:center; justify-content:center; border:1px solid #444; border-radius:4px; cursor:pointer; font-size:0.8rem; transition: background 0.2s, border-color 0.2s; }
 .palette-item.answered { background:#4fc3f7; color:#000; }
+.palette-item.bg-accent { background:#4fc3f7; color:#000; }
+.palette-item.border-yellow-400 { border-color: #ffc107; }
 .progress-bar { background:#333; height:8px; border-radius:4px; overflow:hidden; }
 .progress-bar > div { background:var(--accent); height:100%; border-radius:4px; transition:width 0.4s ease; }
 .stat-box { background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:20px; text-align:center; }
